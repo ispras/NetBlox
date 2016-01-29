@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+   <extension-point id="scenario.parsers" name="Scenario Parsers" schema="schema/parsers.exsd"/>
+   <extension-point id="graph.providers" name="Graph providers" schema="schema/graph.providers.exsd"/>
+   <extension-point id="graph.miners" name="Graph miners" schema="schema/graph.miners.exsd"/>
+   <extension-point id="characteristics.computers" name="Characteristics computers" schema="schema/characteristics.computers.exsd"/>
+
+	<extension id="application" point="org.eclipse.core.runtime.applications">
+		<application>
+			<run class="ru.ispras.modis.NetBlox.Application"></run>
+		</application>
+	</extension>
+ <extension
+       id="product"
+       point="org.eclipse.core.runtime.products">
+    <product
+          application="NetBlox.application"
+          name="NetBlox">
+       <property
+             name="appName"
+             value="NetBlox">
+       </property>
+    </product>
+ </extension>
+</plugin>

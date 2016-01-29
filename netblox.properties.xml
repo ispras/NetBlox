@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration>
+	<forExternalLaunches>
+		<jvm_xms>512m</jvm_xms>
+		<jvm_xmx>1024m</jvm_xmx>
+	</forExternalLaunches>
+
+	<graphFilesRoot>/home/user/Development/netblox/testData/</graphFilesRoot>
+	<tempFolder>/tmp/netblox/</tempFolder>
+	<logsFolder>/tmp/netblox/</logsFolder>
+
+	<language>ru</language>
+	<charset><!--utf8--></charset>
+</configuration>
