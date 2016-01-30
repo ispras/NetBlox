@@ -47,7 +47,6 @@ public class DistributionPlotter extends JFreeChartPlotter {
 			tweakPlot(chart.getCategoryPlot());
 			addSubtitles(chart, plotData);
 
-			//JFreeChartUtils.exportToPDF_iText(makePDFPlotFilePathname(plotData), chart);
 			JFreeChartUtils.exportToPNG(makePNGPlotFilePathname(plotData), chart, plotData.getPlotWidth(), plotData.getPlotHeight());
 
 			showGraphsData = null;

@@ -81,8 +81,6 @@ public abstract class JFreeChartPlotter extends Plotter {
 
 		JFreeChart chart = makeChart(plotData, seriesCollectionForPlotting);
 
-		//JFreeChartUtils.putToPDF_OrsonPDF(makePDFPlotFilePathname(plotData), chart, DEFAULT_WIDTH, DEFAULT_HEIGHT);
-		//JFreeChartUtils.exportToPDF_iText(makePDFPlotFilePathname(plotData), chart);
 		JFreeChartUtils.exportToPNG(makePNGPlotFilePathname(plotData), chart, plotData.getPlotWidth(), plotData.getPlotHeight());
 
 		showGraphsData = null;

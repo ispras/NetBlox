@@ -89,7 +89,6 @@ public class MatrixGraphVisualiser extends GraphVisualiser {
 
 		JFreeChart chart = makeChart(seriesWithMatrixData);
 
-		//JFreeChartUtils.exportToPDF_iText(makePdfExportFilePathname(), chart, DRAWING_AREA_WIDTH, DRAWING_AREA_HEIGHT);
 		String exportFilename = makePNGExportFilePathname(initialGraphParameters, miningParameters);
 		JFreeChartUtils.exportToPNG(exportFilename, chart, DRAWING_AREA_WIDTH, DRAWING_AREA_HEIGHT);
 	}
