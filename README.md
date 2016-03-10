@@ -29,4 +29,4 @@ NetBlox can be launched both right from Eclipse IDE and as a standalone applicat
 NetBlox is released under Apache 2.0 license. The file with license text is added to the repository.
 
 ## Questions
-If you have some questions considering NetBlox, please feel free to ask us!
+If you have some questions considering NetBlox, please feel free to write us! Our email: modis[the special email symbol, you know]ispras.ru.
