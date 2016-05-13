@@ -29,9 +29,9 @@ public class GraphAlgorithmExtensionRegistry<CallbackType> {
 		IExtensionPoint extensionPoint = extensionRegistry.getExtensionPoint(extensionPointID);
 		IConfigurationElement[] extensionMembers = extensionPoint.getConfigurationElements();
 
-		for (IConfigurationElement minerConfiguration : extensionMembers)	{
-			String algorithmName = minerConfiguration.getAttribute(attribute_scenaryName);
-			configurationsForAlgorithmsByName.put(algorithmName, minerConfiguration);	//XXX Consider the case of different implementations.
+		for (IConfigurationElement configuration : extensionMembers)	{
+			String algorithmName = configuration.getAttribute(attribute_scenaryName);
+			configurationsForAlgorithmsByName.put(algorithmName, configuration);	//XXX Consider the case of different implementations.
 		}
 	}
 
@@ -64,7 +64,9 @@ public class GraphAlgorithmExtensionRegistry<CallbackType> {
 	protected IConfigurationElement getConfigurationElement(String algorithmName)	{
 		IConfigurationElement configuration = configurationsForAlgorithmsByName.get(algorithmName);
 		if (configuration == null)	{
-			throw new PluginException("There're no plug-ins that implement "+algorithmName+" (see your scenario file).");
+			PluginException exception = new PluginException("There're no plug-ins that implement "+algorithmName+" (see your scenario file).");
+			exception.pluginIsInExtensionRegistry = false;
+			throw exception;
 		}
 		return configuration;
 	}

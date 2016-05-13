@@ -1,6 +1,7 @@
 package ru.ispras.modis.NetBlox.dataStructures;
 
 import java.util.Collection;
+import java.util.List;
 
 import ru.ispras.modis.NetBlox.utils.Pair;
 
@@ -15,6 +16,9 @@ public interface IGraph {
 	 */
 	public interface INode	{
 		public Integer getId();	//XXX Make String ID?
+
+		public void setAttribute(String attributeName, String attributeValue);
+		public String getAttribute(String attributeName);
 	}
 
 
@@ -58,9 +62,17 @@ public interface IGraph {
 	public Float getEdgeWeight(INode node1, INode node2);
 
 
+	/**
+	 * Number of nodes.
+	 */
 	public int size();
 
 	public boolean isDirected();
 
 	public boolean isWeighted();
+
+
+	public boolean hasNodeAttributes();
+
+	public List<String> getNodeAttributesNames();
 }

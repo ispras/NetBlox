@@ -3,17 +3,21 @@ package ru.ispras.modis.NetBlox.dataStructures;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import ru.ispras.modis.NetBlox.exceptions.SourceGraphException;
 import ru.ispras.modis.NetBlox.utils.Pair;
 
 /**
@@ -27,6 +31,8 @@ public class Graph implements IGraph {
 		private Set<INode> outcomingEdgesTo;	//FUTURE_WORK Should we consider multiple edges between the same two nodes?
 		private Map<INode, Float> outcomingWeightedEdgesTo;
 
+		private Map<String, String> nodeAttributes;
+
 		public Node(Integer id)	{
 			this.id = id;
 			outcomingEdgesTo = new HashSet<INode>();
@@ -34,9 +40,21 @@ public class Graph implements IGraph {
 		}
 
 
-		@Override
 		public Integer getId()	{
 			return id;
+		}
+
+		public void setAttribute(String attributeName, String attributeValue)	{
+			if (nodeAttributes == null)	{
+				nodeAttributes = new HashMap<String, String>();
+			}
+			nodeAttributes.put(attributeName, attributeValue);
+		}
+		public String getAttribute(String attributeName)	{
+			if (nodeAttributes == null)	{
+				return null;
+			}
+			return nodeAttributes.get(attributeName);
 		}
 
 
@@ -93,9 +111,13 @@ public class Graph implements IGraph {
 	private static final int SECOND_NODE_POSITION = 1;
 	private static final int WEIGHT_POSITION = 2;
 
+	public static final String ATTRIBUTES_NAMES_LINE_PREFIX = "%";
+	public static final String ATTRIBUTES_VALUES_DELIMITER_REGEX = ",";
+
 	private Map<Integer, Node> nodes;
 	private boolean directed;
 	private boolean weighted;
+	private List<String> nodeAttributesNames;
 
 
 	public Graph(boolean directed, boolean weighted)	{
@@ -107,6 +129,11 @@ public class Graph implements IGraph {
 	public Graph(String pathToGraph, boolean directed, boolean weighted)	{
 		this(directed, weighted);
 		parseGraph(pathToGraph);
+	}
+
+	public Graph(String pathToGraph, String pathToNodeAttributesFile, boolean directed, boolean weighted) throws SourceGraphException	{
+		this(pathToGraph, directed, weighted);
+		parseNodesAttributesFile(pathToNodeAttributesFile);
 	}
 
 
@@ -121,7 +148,7 @@ public class Graph implements IGraph {
 					edgeNodes[1].addEdgeTo(edgeNodes[0], edgeWeight);
 				}
 			}
-		} catch (IOException e) {	//We assume that we had already checked the existence of the graph.
+		} catch (IOException e) {	//We assume that we have already checked the existence of the graph.
 			//XXX Throw additional exception?
 			e.printStackTrace();
 		}
@@ -150,6 +177,73 @@ public class Graph implements IGraph {
 			}
 		}
 		return weight;
+	}
+
+	private void parseNodesAttributesFile(String pathToAttributes) throws SourceGraphException	{
+		Path path = Paths.get(pathToAttributes);
+		if (!Files.exists(path))	{
+			throw new SourceGraphException("No attributes file when expected.");
+		}
+
+		try {
+			List<String> graphFileLines = Files.readAllLines(path, Charset.defaultCharset());
+			if (graphFileLines.isEmpty())	{
+				throw new SourceGraphException("Empty attributes file.");
+			}
+			Iterator<String> linesIterator = graphFileLines.iterator();
+
+			nodeAttributesNames = parseAttributesNames(linesIterator.next());
+
+			while (linesIterator.hasNext())	{
+				parseNodeAttributesValues(linesIterator.next());
+			}
+		} catch (IOException e) {	//We have checked it exists.
+			String errorMessage = "Couldn't read attributes file: "+e.getMessage();
+			throw new SourceGraphException(errorMessage);
+		}
+	}
+
+	private List<String> parseAttributesNames(String firstLine) throws SourceGraphException	{
+		if (!firstLine.startsWith(ATTRIBUTES_NAMES_LINE_PREFIX))	{
+			StringBuilder messageBuilder = new StringBuilder("The first line of attributes file must start with '").
+					append(ATTRIBUTES_NAMES_LINE_PREFIX).append("' and contain attributes names, separated with '").
+					append(ATTRIBUTES_VALUES_DELIMITER_REGEX).append("'.");
+			throw new SourceGraphException(messageBuilder.toString());
+		}
+		firstLine = firstLine.substring(1);
+		String[] names = firstLine.split(ATTRIBUTES_VALUES_DELIMITER_REGEX);
+		return Arrays.asList(names);
+	}
+
+	//TODO This version doesn't consider attributes that consist of several words including commas (and other punctuation delimiters).
+	private void parseNodeAttributesValues(String lineWithValues)	{
+		String[] idAndValues = lineWithValues.split(WHITESPACE_CHARACTER_REGEX);
+		if (idAndValues==null || idAndValues.length==0)	{
+			return;
+		}
+
+		Integer id = Integer.parseInt(idAndValues[0]);
+		Node node = nodes.get(id);
+		if (node == null)	{
+			System.out.println("WARNING: Node "+idAndValues[0]+" does not have in-/out-coming edges.");
+			node = new Node(id);
+			nodes.put(id, node);
+		}
+
+		if (idAndValues.length==1)	{
+			System.out.println("WARNING: Node "+idAndValues[0]+" is listed in attributes file with NO attributes.");
+			return;
+		}
+		Iterator<String> attributesNamesIterator = nodeAttributesNames.iterator();
+		String[] attributesValues = idAndValues[1].split(ATTRIBUTES_VALUES_DELIMITER_REGEX);
+		for (int i=0 ; i<attributesValues.length ; i++)	{
+			if (!attributesNamesIterator.hasNext())	{
+				break;
+			}
+			String name = attributesNamesIterator.next();
+			String value = attributesValues[i];
+			node.setAttribute(name, value);
+		}
 	}
 
 
@@ -190,7 +284,7 @@ public class Graph implements IGraph {
 			cumulativeDegree += node.getDegree();
 		}
 
-		double averageDegree = cumulativeDegree / nodes.size();
+		double averageDegree = ((float)cumulativeDegree) / nodes.size();
 		return averageDegree;
 	}
 
@@ -326,5 +420,20 @@ public class Graph implements IGraph {
 		}
 
 		return weight;
+	}
+
+
+	public boolean hasNodeAttributes()	{
+		/*Entry<Integer, Node> aNodesEntry = nodes.entrySet().iterator().next();
+		if (aNodesEntry == null)	{
+			return false;
+		}
+		Node node = aNodesEntry.getValue();
+		return !node.nodeAttributes.isEmpty();*/
+		return !nodeAttributesNames.isEmpty();
+	}
+
+	public List<String> getNodeAttributesNames()	{
+		return Collections.unmodifiableList(nodeAttributesNames);
 	}
 }

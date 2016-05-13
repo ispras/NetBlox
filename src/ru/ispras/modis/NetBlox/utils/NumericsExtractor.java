@@ -7,6 +7,8 @@ import java.io.InputStreamReader;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import ru.ispras.modis.NetBlox.exceptions.PluginException;
+
 /**
  * Extracts numeric values in different ways from provided streams, lines.
  * 
@@ -15,7 +17,7 @@ import java.util.regex.Pattern;
 public class NumericsExtractor {
 	private static final String WHITESPACE_CHARACTER_REGEX = "\\s";
 
-	private static final String FLOAT_REGEX = "\\d*[\\.,]?\\d+([eE][-\\+]?\\d+)?";
+	private static final String FLOAT_REGEX = "-?\\d*[\\.,]?\\d+([eE][-\\+]?\\d+)?";
 	private static final Pattern FLOAT_PATTERN = Pattern.compile(FLOAT_REGEX);
 	private static final Pattern FLOAT_AFTER_WHITESPACE_PATTERN = Pattern.compile(WHITESPACE_CHARACTER_REGEX+FLOAT_REGEX);
 
@@ -62,6 +64,10 @@ public class NumericsExtractor {
 			if (matcher.find())	{
 				floatInString = matcher.group().trim();
 			}
+		}
+
+		if (floatInString == null)	{	//Didn't match anything.
+			throw new PluginException("Have tried to use 'extractFloat(String line)' on something that consists not of floats: "+line);
 		}
 
 		return Float.parseFloat(floatInString);

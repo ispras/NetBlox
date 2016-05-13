@@ -3,12 +3,14 @@ package ru.ispras.modis.NetBlox.dataStructures;
 import java.io.IOException;
 import java.nio.charset.Charset;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
+import ru.ispras.modis.NetBlox.exceptions.SetOfGroupsException;
 import ru.ispras.modis.NetBlox.exceptions.SourceGraphException;
 
 /**
@@ -26,13 +28,18 @@ public class SetOfGroupsOfNodes implements ISetOfGroupsOfNodes {
 		this.setOfGroups = setOfGroups;
 	}
 
-	public SetOfGroupsOfNodes(String pathToFileWithGroups, IGraph graph) throws SourceGraphException	{
+	public SetOfGroupsOfNodes(String pathToFileWithGroups, IGraph graph) throws SourceGraphException, SetOfGroupsException	{
 		setOfGroups = parseCommunitiesFile(pathToFileWithGroups, graph);
 	}
 
 
-	private Collection<IGroupOfNodes> parseCommunitiesFile(String pathToFileWithGroups, IGraph graph) throws SourceGraphException	{
+	private Collection<IGroupOfNodes> parseCommunitiesFile(String pathToFileWithGroups, IGraph graph) throws SourceGraphException, SetOfGroupsException	{
 		Collection<IGroupOfNodes> collectionOfGroups = new LinkedList<IGroupOfNodes>();
+
+		Path path = Paths.get(pathToFileWithGroups);
+		if (!Files.exists(path))	{
+			throw new SetOfGroupsException("File with set of groups does not exist: "+pathToFileWithGroups);
+		}
 
 		try {
 			List<String> groupsOfNodesInLines = Files.readAllLines(Paths.get(pathToFileWithGroups), Charset.defaultCharset());

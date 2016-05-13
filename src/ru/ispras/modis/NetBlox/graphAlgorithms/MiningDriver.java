@@ -13,6 +13,7 @@ import ru.ispras.modis.NetBlox.dataStructures.SetOfGroupsOfNodes;
 import ru.ispras.modis.NetBlox.dataStructures.internalMechs.ExtendedMiningParameters;
 import ru.ispras.modis.NetBlox.exceptions.GraphMiningException;
 import ru.ispras.modis.NetBlox.exceptions.PluginException;
+import ru.ispras.modis.NetBlox.exceptions.SetOfGroupsException;
 import ru.ispras.modis.NetBlox.exceptions.SourceGraphException;
 import ru.ispras.modis.NetBlox.graphAlgorithms.graphMining.AGraphMiner;
 import ru.ispras.modis.NetBlox.graphAlgorithms.graphMining.GraphMinerExtensionRegistry;
@@ -119,8 +120,13 @@ public class MiningDriver {
 		else	{
 			IGraph graph = graphHandler.getGraph();
 			if (setOfGroupsFilePathname != null)	{
-				SetOfGroupsOfNodes setOfGroupsOfNodes = new SetOfGroupsOfNodes(setOfGroupsFilePathname, graph);
-				result = groupsOfNodesMiner.mine(graph, setOfGroupsOfNodes, supplementaryData, miningParameters);
+				try	{
+					SetOfGroupsOfNodes setOfGroupsOfNodes = new SetOfGroupsOfNodes(setOfGroupsFilePathname, graph);
+					result = groupsOfNodesMiner.mine(graph, setOfGroupsOfNodes, supplementaryData, miningParameters);
+				}
+				catch (SetOfGroupsException e)	{
+					throw new GraphMiningException(e);
+				}
 			}
 			else	{
 				result = groupsOfNodesMiner.mineFromPreliminaryComputationsResults(graph, supplementaryData, miningParameters);
@@ -148,8 +154,13 @@ public class MiningDriver {
 			if (absoluteExternalFilenames != null  &&  !absoluteExternalFilenames.isEmpty())	{
 				List<ISetOfGroupsOfNodes> setsOfGroups = new ArrayList<ISetOfGroupsOfNodes>(absoluteExternalFilenames.size());
 				for (String externalPathstring : absoluteExternalFilenames)	{
-					SetOfGroupsOfNodes setOfGroupsOfNodes = new SetOfGroupsOfNodes(externalPathstring, graph);
-					setsOfGroups.add(setOfGroupsOfNodes);
+					try	{
+						SetOfGroupsOfNodes setOfGroupsOfNodes = new SetOfGroupsOfNodes(externalPathstring, graph);
+						setsOfGroups.add(setOfGroupsOfNodes);
+					}
+					catch (SetOfGroupsException e)	{
+						throw new GraphMiningException(e);
+					}
 				}
 				minedResults = setsOfGroupsMiner.mine(graph, setsOfGroups, supplementaryData, miningParameters);
 			}

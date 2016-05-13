@@ -9,9 +9,10 @@ import ru.ispras.modis.NetBlox.configuration.SystemConfiguration;
 import ru.ispras.modis.NetBlox.dataStructures.Graph;
 import ru.ispras.modis.NetBlox.dataStructures.ISetOfGroupsOfNodes;
 import ru.ispras.modis.NetBlox.dataStructures.SetOfGroupsOfNodes;
+import ru.ispras.modis.NetBlox.exceptions.SetOfGroupsException;
 import ru.ispras.modis.NetBlox.exceptions.SourceGraphException;
 import ru.ispras.modis.NetBlox.scenario.GraphParametersSet;
-import ru.ispras.modis.NetBlox.scenario.UncategorisedGraphParametersSet;
+import ru.ispras.modis.NetBlox.scenario.UploadedGraphDataParametersSet;
 import ru.ispras.modis.NetBlox.utils.Pair;
 
 /**
@@ -26,6 +27,7 @@ public class GraphOnDriveHandler {
 	private String absoluteGraphDirectoryPath;
 	private String absoluteGraphPath;
 	private String absoluteReferenceCoverPath;
+	private String absoluteNodesAttributesPath;
 
 	private Graph graph = null;
 
@@ -39,13 +41,13 @@ public class GraphOnDriveHandler {
 				GRAPH_FILES_ROOT + SystemConfiguration.FILES_SEPARATOR + relativePathOnDisk;
 		absoluteGraphPath = absoluteGraphDirectoryPath + SystemConfiguration.FILES_SEPARATOR + parameters.getGraphFileName();
 		absoluteReferenceCoverPath = absoluteGraphDirectoryPath + SystemConfiguration.FILES_SEPARATOR + parameters.getReferenceCoverFilename();
+
+		String nodesAttributesFilename = parameters.getNodesAttributesFilename();
+		absoluteNodesAttributesPath = Paths.get(nodesAttributesFilename).isAbsolute() ? nodesAttributesFilename :
+			absoluteGraphDirectoryPath + SystemConfiguration.FILES_SEPARATOR + nodesAttributesFilename;
 	}
 
 	private String generateRelativeGraphDirectoryPath(GraphParametersSet parameters)	{
-		if (parameters instanceof UncategorisedGraphParametersSet)	{
-			return ((UncategorisedGraphParametersSet) parameters).getDirectoryPathname();
-		}
-
 		StringBuilder pathBuilder = generateGraphTypeRelativeDirectory(parameters);
 
 		List<List<Pair<String, String>>> groupedParametersValues = parameters.getSpecifiedParametersAsGroupsOfPairsOfUniqueKeysAndValues();
@@ -77,17 +79,41 @@ public class GraphOnDriveHandler {
 		return pathBuilder.toString();
 	}
 
+	/**
+	 * Both for generated graphs and uploaded graph data (graphs).
+	 * @param parameters
+	 * @return	the path to the directory with graph data (strictly relative if for generated graph; either relative or absolute for uploaded).
+	 */
 	private StringBuilder generateGraphTypeRelativeDirectory(GraphParametersSet parameters)	{
-		StringBuilder pathBuilder = new StringBuilder(parameters.getGraphTypeName());
+		StringBuilder pathBuilder;
+		if (parameters instanceof UploadedGraphDataParametersSet)	{
+			UploadedGraphDataParametersSet uploadedDataParameters = (UploadedGraphDataParametersSet) parameters;
+			pathBuilder = new StringBuilder(uploadedDataParameters.getDirectoryPathname());
 
-		if (parameters.isDirected() && parameters.isWeighted())	{
-			pathBuilder.append("_weighted_directed");
+			if (!uploadedDataParameters.isPathToRequiredGraphExternallyFixed())	{
+				pathBuilder.append(SystemConfiguration.FILES_SEPARATOR);
+				if (parameters.isDirected() && parameters.isWeighted())	{
+					pathBuilder.append("weighted_directed");
+				}
+				else if (parameters.isDirected())	{
+					pathBuilder.append("directed");
+				}
+				else if (parameters.isWeighted())	{
+					pathBuilder.append("weighted");
+				}
+				else	{
+					pathBuilder.append("basic");
+				}
+			}
 		}
-		else if (parameters.isDirected())	{
-			pathBuilder.append("_directed");
-		}
-		else if (parameters.isWeighted())	{
-			pathBuilder.append("_weighted");
+		else	{
+			pathBuilder = new StringBuilder(parameters.getGraphTypeName());
+			if (parameters.isWeighted())	{
+				pathBuilder.append("_weighted");
+			}
+			if (parameters.isDirected())	{
+				pathBuilder.append("_directed");
+			}
 		}
 
 		pathBuilder.append(SystemConfiguration.FILES_SEPARATOR);
@@ -111,6 +137,10 @@ public class GraphOnDriveHandler {
 		return absoluteReferenceCoverPath;
 	}
 
+	public String getAbsoluteNodeAttributesPathString()	{
+		return absoluteNodesAttributesPath;
+	}
+
 
 	public String getAbsolutePathPossiblyWithGraphDirectory(String possiblyRelativePath)	{
 		File file = new File(possiblyRelativePath);
@@ -131,17 +161,33 @@ public class GraphOnDriveHandler {
 			throw new SourceGraphException("The source graph with path '"+absoluteGraphPath+"' does not exist.");
 		}
 
-		graph = new Graph(absoluteGraphPath, parameters.isDirected(), parameters.isWeighted());
+		if ((new File(absoluteNodesAttributesPath)).exists())	{
+			graph = new Graph(absoluteGraphPath, absoluteNodesAttributesPath, parameters.isDirected(), parameters.isWeighted());
+		}
+		else	{
+			graph = new Graph(absoluteGraphPath, parameters.isDirected(), parameters.isWeighted());
+		}
 		return graph;
 	}
 
 	public ISetOfGroupsOfNodes getReference() throws SourceGraphException	{
-		return new SetOfGroupsOfNodes(getAbsoluteReferenceCoverPathString(), getGraph());
+		try	{
+			SetOfGroupsOfNodes setOfGroups = new SetOfGroupsOfNodes(getAbsoluteReferenceCoverPathString(), getGraph());
+			return setOfGroups;
+		}
+		catch (SetOfGroupsException e)	{
+			throw new SourceGraphException(e);
+		}
 	}
 
 
 	public boolean doesGraphExistOnDisk()	{
 		File file = new File(absoluteGraphPath);
+		return file.exists();
+	}
+
+	public boolean doesReferenceSetOfGroupsOfNodesExist()	{
+		File file = new File(absoluteReferenceCoverPath);
 		return file.exists();
 	}
 

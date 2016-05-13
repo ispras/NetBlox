@@ -12,6 +12,7 @@ import ru.ispras.modis.NetBlox.utils.Pair;
  */
 public abstract class GraphParametersSet extends ParametersSet {
 	protected static final String GRAPH_FILE_NAME = "network.dat";
+	protected static final String NODES_ATTRIBUTES_FILE_NAME = "nodes.attributes.dat";
 
 	private static int numberOfGraphParametersSets = 0;
 	private int numberAmongOtherParametersSets;
@@ -89,15 +90,6 @@ public abstract class GraphParametersSet extends ParametersSet {
 	}
 
 
-	public boolean haveAttributes()	{
-		return attributesFileName != null;
-	}
-
-	public String getAttributesFileName()	{
-		return attributesFileName;
-	}
-
-
 	public Integer getGenerationNumber()	{
 		return (generationNumber==null)?null:generationNumber.getValue();
 	}
@@ -131,6 +123,10 @@ public abstract class GraphParametersSet extends ParametersSet {
 
 	public String getGraphFileName() {
 		return GRAPH_FILE_NAME;
+	}
+
+	public String getNodesAttributesFilename()	{
+		return NODES_ATTRIBUTES_FILE_NAME;
 	}
 
 	public String getShortLabel()	{

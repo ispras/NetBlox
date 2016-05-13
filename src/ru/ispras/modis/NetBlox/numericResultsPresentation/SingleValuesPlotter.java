@@ -18,9 +18,12 @@ import org.jfree.chart.JFreeChart;
 import org.jfree.chart.axis.NumberAxis;
 import org.jfree.chart.axis.ValueAxis;
 import org.jfree.chart.plot.DrawingSupplier;
+import org.jfree.chart.plot.PlotOrientation;
 import org.jfree.chart.plot.XYPlot;
 import org.jfree.chart.renderer.xy.StandardXYItemRenderer;
 import org.jfree.chart.renderer.xy.XYItemRenderer;
+import org.jfree.data.category.CategoryDataset;
+import org.jfree.data.category.DefaultCategoryDataset;
 import org.jfree.data.statistics.BoxAndWhiskerCalculator;
 import org.jfree.data.statistics.BoxAndWhiskerItem;
 import org.jfree.data.xy.XYSeries;
@@ -34,12 +37,13 @@ import ru.ispras.modis.NetBlox.dataStructures.internalMechs.CoordinateVector;
 import ru.ispras.modis.NetBlox.dataStructures.internalMechs.MultiDimensionalArray;
 import ru.ispras.modis.NetBlox.dataStructures.internalMechs.SingleTypeBigChart;
 import ru.ispras.modis.NetBlox.exceptions.ResultsPresentationException;
+import ru.ispras.modis.NetBlox.scenario.DescriptionDataArrangement.PlotStyle;
 import ru.ispras.modis.NetBlox.scenario.DescriptionDataArrangement.StatisticsAggregation;
 import ru.ispras.modis.NetBlox.scenario.RangeOfValues;
 import ru.ispras.modis.NetBlox.scenario.ScenarioTask;
 
 /**
- * Class for drawing plots for single value measures (like NMI, average F1-score, diameter, etc.
+ * Class for drawing plots for single value measures (like NMI, average F1-score, diameter, etc.).
  *
  * @author ilya
  */
@@ -58,6 +62,7 @@ public class SingleValuesPlotter extends JFreeChartPlotter {
 
 	private static final String KEY_GRAPHS = "graphs";
 
+	private PlotStyle currentPlotStyle;
 
 
 	public SingleValuesPlotter(ScenarioTask scenarioTask) {
@@ -67,19 +72,27 @@ public class SingleValuesPlotter extends JFreeChartPlotter {
 
 	public void drawPlot(SingleTypeBigChart plotData) throws ResultsPresentationException	{
 		showGraphsData = plotData.toShowGraphsData();
+		currentPlotStyle = plotData.getPlotStyle();
 
 		JFreeChart chart = null;
-		if (plotData.doAveraging())	{
-			XYDatasetPair boxWhiskerAndSeriesPair = prepareDoubleDataset(plotData);
-			chart = makeChart(plotData, boxWhiskerAndSeriesPair);
+		if (currentPlotStyle == PlotStyle.BAR)	{
+			CategoryDataset categoryDataset = prepareCategoryDataset(plotData);
+			chart = makeChart(plotData, categoryDataset);
 		}
 		else	{
-			XYSeriesCollection seriesCollectionForPlotting = prepareSeriesCollection(plotData);
-			chart = makeChart(plotData, seriesCollectionForPlotting);
+			if (plotData.doAveraging())	{
+				XYDatasetPair boxWhiskerAndSeriesPair = prepareDoubleDataset(plotData);
+				chart = makeChart(plotData, boxWhiskerAndSeriesPair);
+			}
+			else	{
+				XYSeriesCollection seriesCollectionForPlotting = prepareSeriesCollection(plotData);
+				chart = makeChart(plotData, seriesCollectionForPlotting);
+			}
 		}
 
 		JFreeChartUtils.exportToPNG(makePNGPlotFilePathname(plotData), chart, plotData.getPlotWidth(), plotData.getPlotHeight());
 
+		currentPlotStyle = null;
 		showGraphsData = null;
 	}
 
@@ -138,7 +151,14 @@ public class SingleValuesPlotter extends JFreeChartPlotter {
 		for (Object coordinateValue : dimensionCoordinatesValues)	{
 			fixedCoordinates.set(dimension, coordinateValue);
 
-			if (isDataToBeAveraged)	{	//There's what to average.
+			if (currentPlotStyle == PlotStyle.BAR)	{
+				MultiDimensionalArray.DataCell dataCell = lineData.getDataCell(fixedCoordinates);
+				NumericCharacteristic carriedCharacteristic = dataCell.getCarriedValue();
+				Float value = (carriedCharacteristic==null)?null:carriedCharacteristic.getValue();
+
+				((DefaultCategoryDataset)resultContainer).addValue(value, seriesLabel, (Comparable<?>)coordinateValue);
+			}
+			else if (isDataToBeAveraged)	{	//There's what to average.
 				XYDatasetPair datasetPair = (XYDatasetPair)resultContainer;
 
 				Collection<MultiDimensionalArray.DataCell> toBeAveraged = lineData.getMultipleValues(fixedCoordinates);
@@ -149,10 +169,14 @@ public class SingleValuesPlotter extends JFreeChartPlotter {
 			}
 			else	{	//There's nothing to be averaged, we're dealing with more or less singles.
 				MultiDimensionalArray.DataCell dataCell = lineData.getDataCell(fixedCoordinates);
-				series.add((Number) coordinateValue, dataCell.getCarriedValue().getValue());
+				NumericCharacteristic characteristic = dataCell.getCarriedValue();
+				series.add((Number) coordinateValue, (characteristic==null)?null:characteristic.getValue());
 			}
 		}
 
+		if (currentPlotStyle == PlotStyle.BAR)	{
+			return;
+		}
 		if (isDataToBeAveraged)	{
 			((XYDatasetPair)resultContainer).seriesDataset.addSeries(series);
 		}
@@ -172,14 +196,30 @@ public class SingleValuesPlotter extends JFreeChartPlotter {
 			String seriesLabel = makeSeriesLabel(lineData, dimension, coordinateValue, firstDataCell);
 			XYSeries series = new XYSeries(seriesLabel);
 
-			if (toBeAveraged.size() > 1)	{	//There's what to average.
+			if (currentPlotStyle == PlotStyle.BAR)	{
+				MultiDimensionalArray.DataCell dataCell = lineData.getDataCell(fixedCoordinates);
+				NumericCharacteristic carriedCharacteristic = dataCell.getCarriedValue();
+				if (carriedCharacteristic != null)	{
+					Map<Double, Double> function = carriedCharacteristic.getFunction();
+					for (Map.Entry<Double, Double> functionEntry : function.entrySet())	{
+						((DefaultCategoryDataset)resultContainer).addValue(functionEntry.getValue(), seriesLabel, functionEntry.getKey());
+					}
+				}
+				else	{
+					((DefaultCategoryDataset)resultContainer).addValue(null, seriesLabel, "");	//#4689. Plot 'absence of data'.
+				}
+			}
+			else if (toBeAveraged.size() > 1)	{	//There's what to average.
 				makeBoxAndWhiskerFunction(toBeAveraged, ((XYDatasetPair)resultContainer).boxAndWhiskersDataset, seriesLabel, series);
 				((XYDatasetPair)resultContainer).seriesDataset.addSeries(series);
 			}
 			else	{	//There's nothing to be averaged, we're dealing with simple functions.
-				Map<Double, Double> function = firstDataCell.getCarriedValue().getFunction();
-				for (Map.Entry<Double, Double> functionEntry : function.entrySet())	{
-					series.add(functionEntry.getKey(), functionEntry.getValue());
+				NumericCharacteristic carriedCharacteristic = firstDataCell.getCarriedValue();
+				if (carriedCharacteristic != null)	{
+					Map<Double, Double> function = carriedCharacteristic.getFunction();
+					for (Map.Entry<Double, Double> functionEntry : function.entrySet())	{
+						series.add(functionEntry.getKey(), functionEntry.getValue());
+					}
 				}
 				((XYSeriesCollection)resultContainer).addSeries(series);
 			}
@@ -206,38 +246,72 @@ public class SingleValuesPlotter extends JFreeChartPlotter {
 	@Override
 	protected void processValuesForFixedXValue(Object xValue, CoordinateVector<Object> fixedXCoordinates,
 			MultiDimensionalArray lineData, StatisticsAggregation aggregationType, Object resultContainer) throws ResultsPresentationException	{
-		if (lineData.hasDataToBeAveraged())	{
-			XYDatasetPair datasetPair = (XYDatasetPair)resultContainer;
+		if (currentPlotStyle == PlotStyle.BAR)	{
+			DefaultCategoryDataset dataset = (DefaultCategoryDataset)resultContainer;
+			processForFixedXValue(xValue, fixedXCoordinates, lineData, dataset);
+		}
+		else	{
+			if (lineData.hasDataToBeAveraged())	{
+				XYDatasetPair datasetPair = (XYDatasetPair)resultContainer;
+				processForFixedXValueWithAveraging(xValue, fixedXCoordinates, lineData, datasetPair);
+			}
+			else	{
+				processForFixedXValue(xValue, fixedXCoordinates, lineData, (XYSeriesCollection)resultContainer);
+			}
+		}
+	}
 
-			Collection<MultiDimensionalArray.DataCell> toBeAveraged = lineData.getMultipleValues(fixedXCoordinates);
-			MultiDimensionalArray.DataCell firstDataCell = toBeAveraged.iterator().next();
+	private void processForFixedXValue(Object xValue, CoordinateVector<Object> fixedXCoordinates, MultiDimensionalArray lineData,
+			DefaultCategoryDataset dataset) throws ResultsPresentationException	{
+		MultiDimensionalArray.DataCell dataCell = lineData.getDataCell(fixedXCoordinates);
 
-			String seriesLabel = makeSeriesLabel(lineData, MultiDimensionalArray.FIRST_DIMENSION, xValue, firstDataCell);
-			XYSeries series = new XYSeries(seriesLabel);
+		String seriesLabel = makeSeriesLabel(lineData, MultiDimensionalArray.FIRST_DIMENSION, xValue, dataCell);
 
-			switch (firstDataCell.getCarriedValue().getType())	{
+		NumericCharacteristic carriedCharacteristic = dataCell.getCarriedValue();
+		Float value = (carriedCharacteristic==null)?null:carriedCharacteristic.getValue();
+
+		dataset.addValue(value, seriesLabel, (xValue==null)?"":xValue.toString());
+	}
+
+	private void processForFixedXValueWithAveraging(Object xValue, CoordinateVector<Object> fixedXCoordinates,
+			MultiDimensionalArray lineData, XYDatasetPair datasetPair) throws ResultsPresentationException	{
+		Collection<MultiDimensionalArray.DataCell> toBeAveraged = lineData.getMultipleValues(fixedXCoordinates);
+		MultiDimensionalArray.DataCell firstDataCell = toBeAveraged.iterator().next();
+
+		String seriesLabel = makeSeriesLabel(lineData, MultiDimensionalArray.FIRST_DIMENSION, xValue, firstDataCell);
+		XYSeries series = new XYSeries(seriesLabel);
+
+		NumericCharacteristic firstCellCharacteristic = firstDataCell.getCarriedValue();
+		if (firstCellCharacteristic != null)	{
+			switch (firstCellCharacteristic.getType())	{
 			case SINGLE_VALUE:
 				BoxAndWhiskerItem boxAndWhiskerItem = makeBoxAndWhiskerItem(toBeAveraged);
-				series.add((Number)xValue, boxAndWhiskerItem.getMean());
-				datasetPair.boxAndWhiskersDataset.add(seriesLabel, (Number) xValue, makeNoBoxItem(boxAndWhiskerItem));
+				Number x = (xValue==null) ? 0 : (Number)xValue;
+				series.add(x, boxAndWhiskerItem.getMean());
+				datasetPair.boxAndWhiskersDataset.add(seriesLabel, x, makeNoBoxItem(boxAndWhiskerItem));
 				break;
 			case FUNCTION:
 				makeBoxAndWhiskerFunction(toBeAveraged, datasetPair.boxAndWhiskersDataset, seriesLabel, series);
 				break;
 			}
-
-			datasetPair.seriesDataset.addSeries(series);
 		}
-		else	{
-			MultiDimensionalArray.DataCell dataCell = lineData.getDataCell(fixedXCoordinates);
 
-			String seriesLabel = makeSeriesLabel(lineData, MultiDimensionalArray.FIRST_DIMENSION, xValue, dataCell);
-			XYSeries series = new XYSeries(seriesLabel);
+		datasetPair.seriesDataset.addSeries(series);
+	}
 
-			NumericCharacteristic measureContainer = dataCell.getCarriedValue();
+	private void processForFixedXValue(Object xValue, CoordinateVector<Object> fixedXCoordinates,
+			MultiDimensionalArray lineData, XYSeriesCollection resultCollection) throws ResultsPresentationException	{
+		MultiDimensionalArray.DataCell dataCell = lineData.getDataCell(fixedXCoordinates);
+
+		String seriesLabel = makeSeriesLabel(lineData, MultiDimensionalArray.FIRST_DIMENSION, xValue, dataCell);
+		XYSeries series = new XYSeries(seriesLabel);
+
+		NumericCharacteristic measureContainer = dataCell.getCarriedValue();
+		if (measureContainer != null)	{
 			switch (measureContainer.getType())	{
 			case SINGLE_VALUE:
-				series.add((Number)xValue, measureContainer.getValue());
+				Number x = (xValue==null) ? 0 : (Number)xValue;
+				series.add(x, measureContainer.getValue());
 				break;
 			case FUNCTION:
 				Map<Double, Double> function = measureContainer.getFunction();
@@ -246,16 +320,17 @@ public class SingleValuesPlotter extends JFreeChartPlotter {
 				}
 				break;
 			}
-
-			((XYSeriesCollection)resultContainer).addSeries(series);
 		}
+
+		resultCollection.addSeries(series);
 	}
 
 
 	private BoxAndWhiskerItem makeBoxAndWhiskerItem(Collection<MultiDimensionalArray.DataCell> data)	{
 		ArrayList<Float> values = new ArrayList<Float>(data.size());
 		for (MultiDimensionalArray.DataCell dataCell : data)	{
-			float aValue = dataCell.getCarriedValue().getValue();
+			NumericCharacteristic carriedCharacteristic = dataCell.getCarriedValue();
+			Float aValue = (carriedCharacteristic==null)?null:carriedCharacteristic.getValue();
 			values.add(aValue);
 		}
 		BoxAndWhiskerItem item = BoxAndWhiskerCalculator.calculateBoxAndWhiskerStatistics(values);
@@ -267,7 +342,12 @@ public class SingleValuesPlotter extends JFreeChartPlotter {
 			String seriesLabel, XYSeries series)	{
 		Map<Double, List<Double>> listsOfFunctionValuesForArguments = new HashMap<Double, List<Double>>();
 		for (MultiDimensionalArray.DataCell dataCell : data)	{
-			Map<Double, Double> function = dataCell.getCarriedValue().getFunction();
+			NumericCharacteristic carriedCharacteristic = dataCell.getCarriedValue();
+			if (carriedCharacteristic == null)	{
+				continue;
+			}
+
+			Map<Double, Double> function = carriedCharacteristic.getFunction();
 			for (Map.Entry<Double, Double> functionEntry : function.entrySet())	{
 				Double argument = functionEntry.getKey();
 				List<Double> valuesForArgument = listsOfFunctionValuesForArguments.get(argument);
@@ -295,6 +375,18 @@ public class SingleValuesPlotter extends JFreeChartPlotter {
 				item.getMinRegularValue(), item.getMaxRegularValue(), item.getMinOutlier(), item.getMaxOutlier(), item.getOutliers());
 	}
 
+
+	private JFreeChart makeChart(SingleTypeBigChart plotData, CategoryDataset categoryDataset)	{
+		defineAxesLabels(plotData);
+
+		String plotTitle = null;	//plotData.getMeasureName()
+		JFreeChart chart = ChartFactory.createBarChart(plotTitle, X_AXIS_LABEL, Y_AXIS_LABEL, categoryDataset,
+				PlotOrientation.VERTICAL, plotData.showLegend(), false, false);
+
+		addSubtitles(chart, plotData);
+
+		return chart;
+	}
 
 	private JFreeChart makeChart(SingleTypeBigChart plotData, XYDatasetPair boxWhiskerAndSeriesPair)	{
 		defineAxesLabels(plotData);

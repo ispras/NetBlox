@@ -14,8 +14,8 @@ import ru.ispras.modis.NetBlox.scenario.RangeOfValues;
  * @author ilya
  */
 abstract class XMLRangedStringValueProcessor extends XMLStringValueProcessor	{
-	private static final String ATTRIBUTE_EXPLICIT_OR_RANGE = "explicitValuesOrRange";
-	private static final String ATTRIBUTE_PRESENTATION_VALUES = "values";
+	protected static final String ATTRIBUTE_EXPLICIT_OR_RANGE = "explicitValuesOrRange";
+	protected static final String ATTRIBUTE_PRESENTATION_VALUES = "values";
 	private static final String ATTRIBUTE_PRESENTATION_RANGE = "range";
 	private static final String ATTRIBUTE_RANGE_STEP = "step";
 

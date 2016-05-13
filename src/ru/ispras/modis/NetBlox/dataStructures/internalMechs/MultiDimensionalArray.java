@@ -298,11 +298,19 @@ public class MultiDimensionalArray implements Cloneable {
 		Iterator<DataCell> dataCellsIterator = toBeAveraged.iterator();
 		DataCell dataCell = dataCellsIterator.next();
 		NumericCharacteristic result = dataCell.getCarriedValue();
-		while (dataCellsIterator.hasNext())	{
-			result.add(dataCellsIterator.next().getCarriedValue());	//XXX Is supported only for SINGLE_VALUE now.
-		}
-		if (numberOfElements > 1)	{
-			result.divideBy(numberOfElements);						//XXX Is supported only for SINGLE_VALUE now.
+		if (result != null)	{
+			while (dataCellsIterator.hasNext())	{
+				NumericCharacteristic otherCharacteristic = dataCellsIterator.next().getCarriedValue();
+				if (otherCharacteristic != null)	{
+					result.add(otherCharacteristic);	//XXX Is supported only for SINGLE_VALUE now.
+				}
+				else	{
+					throw new ResultsPresentationException("At least one of characteristic values in a row to be averaged is NULL.");
+				}
+			}
+			if (numberOfElements > 1)	{
+				result.divideBy(numberOfElements);						//XXX Is supported only for SINGLE_VALUE now.
+			}
 		}
 
 		return new DataCell(result, dataCell.getGraphParameters());
@@ -345,17 +353,18 @@ public class MultiDimensionalArray implements Cloneable {
 
 	public NumericCharacteristic.Type getContainedValuesType()	{
 		Iterator<CoordinateVector<Object>> coordinatesIterator = dataContainer.getHeads().iterator();
-		if (!coordinatesIterator.hasNext())	{
-			return null;
+		while (coordinatesIterator.hasNext())	{
+			CoordinateVector<Object> coordinateVector = coordinatesIterator.next();
+			Iterator<DataCell> valuesIterator = dataContainer.getTails(coordinateVector).values().iterator();
+			while (valuesIterator.hasNext())	{
+				NumericCharacteristic characteristic = valuesIterator.next().getCarriedValue();
+				if (characteristic != null)	{
+					return characteristic.getType();
+				}
+			}
 		}
-		CoordinateVector<Object> coordinateVector = coordinatesIterator.next();
 
-		Iterator<DataCell> valuesIterator = dataContainer.getTails(coordinateVector).values().iterator();
-		if (!valuesIterator.hasNext())	{
-			return null;
-		}
-
-		return valuesIterator.next().getCarriedValue().getType();
+		return null;
 	}
 
 
@@ -382,9 +391,15 @@ public class MultiDimensionalArray implements Cloneable {
 		String dimensionVariationId = getVariationIdForDimension(dimension);
 		String dimensionTag = getDimensionTag(dimension);
 
-		URL languageResourcesURL = scenarioTask.getVariationLanguageResourcesURL(dimensionVariationId);
-		LanguagesConfiguration languageConfiguration = LanguagesConfiguration.getConfiguration(languageResourcesURL);
-		String label = languageConfiguration.getLabel(dimensionTag);
+		String label;
+		if (!dimensionVariationId.equals(RangeOfValues.NO_RANGE_ID))	{
+			URL languageResourcesURL = scenarioTask.getVariationLanguageResourcesURL(dimensionVariationId);
+			LanguagesConfiguration languageConfiguration = LanguagesConfiguration.getConfiguration(languageResourcesURL);
+			label = languageConfiguration.getLabel(dimensionTag);
+		}
+		else	{
+			label = LanguagesConfiguration.getNetBloxLabel(dimensionTag);
+		}
 		return label;
 	}
 

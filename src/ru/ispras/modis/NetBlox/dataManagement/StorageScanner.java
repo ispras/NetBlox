@@ -19,6 +19,7 @@ import ru.ispras.modis.NetBlox.dataStructures.NumericCharacteristic;
 import ru.ispras.modis.NetBlox.dataStructures.SetOfGroupsOfNodes;
 import ru.ispras.modis.NetBlox.dataStructures.internalMechs.AnalysedDataIdentifier;
 import ru.ispras.modis.NetBlox.dataStructures.internalMechs.ExtendedMiningParameters;
+import ru.ispras.modis.NetBlox.exceptions.SetOfGroupsException;
 import ru.ispras.modis.NetBlox.exceptions.SourceGraphException;
 import ru.ispras.modis.NetBlox.exceptions.StorageException;
 import ru.ispras.modis.NetBlox.graphAlgorithms.graphMining.SupplementaryData;
@@ -104,8 +105,13 @@ public class StorageScanner extends StorageHandler {
 		//TODO What about SupplementaryData?
 		String pathInStorage = getMinedDataFilePathstring(graphHandler, miningParameters, ContentType.NODES_GROUPS);
 
-		ISetOfGroupsOfNodes minedGroupsOfNodes = new SetOfGroupsOfNodes(pathInStorage, graphHandler.getGraph());
-		return minedGroupsOfNodes;
+		try	{
+			ISetOfGroupsOfNodes minedGroupsOfNodes = new SetOfGroupsOfNodes(pathInStorage, graphHandler.getGraph());
+			return minedGroupsOfNodes;
+		}
+		catch (SetOfGroupsException e)	{
+			throw new StorageException(e);
+		}
 	}
 
 	public static NumericCharacteristic getMinedCharacteristic(GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters)
@@ -176,10 +182,7 @@ public class StorageScanner extends StorageHandler {
 			Iterator<String> stringsIterator = strings.iterator();
 
 			String line = stringsIterator.next();
-			if (line.equalsIgnoreCase(NumericCharacteristic.Type.SINGLE_VALUE.toString())  ||  strings.size() == 1)	{
-				result = retrieveSingleFloatValue(stringsIterator, line);
-			}
-			else if (line.equalsIgnoreCase(NumericCharacteristic.Type.LIST_OF_VALUES.toString()))	{
+			if (line.equalsIgnoreCase(NumericCharacteristic.Type.LIST_OF_VALUES.toString()))	{
 				result = retrieveListOfValues(stringsIterator);
 			}
 			else if (line.equalsIgnoreCase(NumericCharacteristic.Type.DISTRIBUTION.toString()))	{
@@ -187,6 +190,9 @@ public class StorageScanner extends StorageHandler {
 			}
 			else if (line.equalsIgnoreCase(NumericCharacteristic.Type.FUNCTION.toString()))	{
 				result = retrieveFunction(stringsIterator);
+			}
+			else if (line.equalsIgnoreCase(NumericCharacteristic.Type.SINGLE_VALUE.toString())  ||  strings.size() == 1)	{
+				result = retrieveSingleFloatValue(stringsIterator, line);
 			}
 
 		} catch (IOException e) {

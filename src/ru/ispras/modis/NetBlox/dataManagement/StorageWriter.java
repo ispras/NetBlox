@@ -11,12 +11,15 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import ru.ispras.modis.NetBlox.dataStructures.Graph;
 import ru.ispras.modis.NetBlox.dataStructures.IGraph;
+import ru.ispras.modis.NetBlox.dataStructures.IGraph.INode;
 import ru.ispras.modis.NetBlox.dataStructures.IGroupOfNodes;
 import ru.ispras.modis.NetBlox.dataStructures.ISetOfGroupsOfNodes;
 import ru.ispras.modis.NetBlox.dataStructures.NumericCharacteristic;
@@ -70,20 +73,52 @@ public class StorageWriter extends StorageHandler {
 		save(dataLines, targetPathString);
 	}
 
-	public static void save(IGraph graph, String targetPathString) throws IOException	{
+	public static void saveEdges(IGraph graph, String targetPathString) throws IOException	{
 		Collection<Pair<IGraph.INode, IGraph.INode>> edges = graph.getEdges();
-
-		//System.out.println("\t\tDiscovered graph:");
 
 		List<String> linesOfEdges = new ArrayList<String>(edges.size());
 		for (Pair<IGraph.INode, IGraph.INode> edge : edges)	{
-			StringBuilder edgeLineBuilder = new StringBuilder().append(edge.get1st().getId()).append("\t").append(edge.get2nd().getId());
+			INode node1 = edge.get1st();
+			INode node2 = edge.get2nd();
+			StringBuilder edgeLineBuilder = new StringBuilder().append(node1.getId().toString()).append("\t").append(node2.getId().toString());
+			if (graph.isWeighted())	{
+				edgeLineBuilder.append("\t").append(graph.getEdgeWeight(node1, node2));
+			}
 			linesOfEdges.add(edgeLineBuilder.toString());
-
-			//System.out.println("\t\t\t"+edgeLineBuilder.toString());
 		}
 
 		save(linesOfEdges, targetPathString);
+	}
+
+	public static void saveAttributes(IGraph graph, String targetPathString) throws IOException	{
+		if (!graph.hasNodeAttributes())	{
+			return;
+		}
+
+		List<String> linesOfNodesAttributes = new ArrayList<String>(graph.size()+1);
+
+		List<String> attributesNames = graph.getNodeAttributesNames();
+
+		Iterator<String> attributesNamesIterator = attributesNames.iterator();
+		StringBuilder lineBuilder = new StringBuilder(Graph.ATTRIBUTES_NAMES_LINE_PREFIX).append(attributesNamesIterator.next());
+		while (attributesNamesIterator.hasNext())	{
+			String attributeName = attributesNamesIterator.next();
+			lineBuilder.append(Graph.ATTRIBUTES_VALUES_DELIMITER_REGEX).append(attributeName);
+		}
+		linesOfNodesAttributes.add(lineBuilder.toString());
+
+		for (INode node : graph.getNodes())	{
+			attributesNamesIterator = attributesNames.iterator();
+			String attributeValue = node.getAttribute(attributesNamesIterator.next());
+			lineBuilder = new StringBuilder(node.getId().toString()).append('\t').append((attributeValue==null)?"":attributeValue);
+			while (attributesNamesIterator.hasNext())	{
+				attributeValue = node.getAttribute(attributesNamesIterator.next());
+				lineBuilder.append(Graph.ATTRIBUTES_VALUES_DELIMITER_REGEX).append((attributeValue==null)?"":attributeValue);
+			}
+			linesOfNodesAttributes.add(lineBuilder.toString());
+		}
+
+		save(linesOfNodesAttributes, targetPathString);
 	}
 
 	public static void save(ISetOfGroupsOfNodes setOfGroupsOfNodes, String targetPathString) throws IOException	{
@@ -135,7 +170,7 @@ public class StorageWriter extends StorageHandler {
 
 	public static void saveMined(IGraph graph, GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters) throws IOException	{
 		String pathToStorage = getPathStringToStoredMinedData(graphHandler, miningParameters, ContentType.GRAPH_EDGES);
-		save(graph, pathToStorage);
+		saveEdges(graph, pathToStorage);
 	}
 
 	public static void saveMined(ISetOfGroupsOfNodes setOfGroupsOfNodes, GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters)
@@ -196,7 +231,7 @@ public class StorageWriter extends StorageHandler {
 		int structuresCounter = 0;
 		for (IGraph graph : graphs)	{
 			structuresCounter++;
-			save(graph, basicPathToStorage+structuresCounter);
+			saveEdges(graph, basicPathToStorage+structuresCounter);
 		}
 	}
 

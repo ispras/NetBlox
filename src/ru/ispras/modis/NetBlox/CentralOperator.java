@@ -18,6 +18,7 @@ import ru.ispras.modis.NetBlox.exceptions.GraphGenerationException;
 import ru.ispras.modis.NetBlox.exceptions.GraphMiningException;
 import ru.ispras.modis.NetBlox.exceptions.MeasureComputationException;
 import ru.ispras.modis.NetBlox.exceptions.PluginException;
+import ru.ispras.modis.NetBlox.exceptions.SetOfGroupsException;
 import ru.ispras.modis.NetBlox.exceptions.SourceGraphException;
 import ru.ispras.modis.NetBlox.exceptions.StorageException;
 import ru.ispras.modis.NetBlox.exceptions.VisualisationException;
@@ -34,7 +35,7 @@ import ru.ispras.modis.NetBlox.scenario.ParametersSet;
 import ru.ispras.modis.NetBlox.scenario.RangeOfValues;
 import ru.ispras.modis.NetBlox.scenario.ScenarioTask;
 import ru.ispras.modis.NetBlox.scenario.ScenarioTask.Goal;
-import ru.ispras.modis.NetBlox.scenario.UncategorisedGraphParametersSet;
+import ru.ispras.modis.NetBlox.scenario.UploadedGraphDataParametersSet;
 import ru.ispras.modis.NetBlox.scenario.ValueFromRange;
 import ru.ispras.modis.NetBlox.scenario.performanceStats.PerformanceStatisticParameters;
 
@@ -116,11 +117,6 @@ public class CentralOperator {
 		GraphOnDriveHandler graphHandler = new GraphOnDriveHandler(fixedGraphParameters);
 
 		if (!graphHandler.doesGraphExistOnDisk())	{
-			if (fixedGraphParameters instanceof UncategorisedGraphParametersSet)	{
-				String errorMessage = "The uncategorised graph does not exist and it cannot be generated. Graph: "+fixedGraphParameters.toString();
-				throw new SourceGraphException(errorMessage);
-			}
-
 			System.out.println("\t\tNeed to generate the graph.");
 			GraphsObtainer.obtainGraph(graphHandler);
 			System.out.println("\t\tHave generated the graph.");
@@ -272,7 +268,7 @@ public class CentralOperator {
 
 			if (workTimeMillis == null)	{
 				GraphParametersSet graphParameters = graphHandler.getGraphParameters();
-				if (graphParameters instanceof UncategorisedGraphParametersSet)	{
+				if (graphParameters instanceof UploadedGraphDataParametersSet)	{
 					String message = "The uncategorised graph cannot be generated, no performance stats for this. Graph: "+graphParameters.toString();
 					throw new SourceGraphException(message);
 				}
@@ -325,10 +321,12 @@ public class CentralOperator {
 			// (But they must be both attempted in this method in case of graph mining section present in scenario.)
 
 			AnalysedDataIdentifier minedDataIdentifier = new AnalysedDataIdentifier(miningParameters);
+			boolean couldComputeCharacteristicOnMiningResults = false;
 			switch (characteristicParameters.getJobBase())	{
 			case GRAPH:
 				if (miningParameters != null  &&  StorageScanner.containsMinedGraph(graphHandler, miningParameters))	{
 					computeCharacteristic(graphHandler, minedDataIdentifier, characteristicParameters, arrangedData);
+					couldComputeCharacteristicOnMiningResults = true;
 				}
 
 				//TODO Check whether we do run characteristic computations on original graphs. Requires adding parameters to measure description.
@@ -338,6 +336,7 @@ public class CentralOperator {
 			case NODES_GROUPS_SET:
 				if (miningParameters != null  &&  StorageScanner.containsMinedGroupsOfNodes(graphHandler, miningParameters))	{
 					computeCharacteristic(graphHandler, minedDataIdentifier, characteristicParameters, arrangedData);
+					couldComputeCharacteristicOnMiningResults = true;
 				}
 
 				if (providedForMeasuresSetsOfGroupsOfNodesFilenames != null)	{
@@ -350,8 +349,18 @@ public class CentralOperator {
 			case NUMERIC_CHARACTERISTIC:
 				if (miningParameters != null  &&  StorageScanner.containsMinedCharacteristic(graphHandler, miningParameters))	{
 					computeCharacteristic(graphHandler, minedDataIdentifier, characteristicParameters, arrangedData);
+					couldComputeCharacteristicOnMiningResults = true;
 				}
 				break;
+			}
+
+			//#4689. Sometimes mining methods could have got no results. But it may be necessary to plot this absence of result.
+			if (miningParameters != null  &&  !couldComputeCharacteristicOnMiningResults  &&  arrangedData != null)	{
+				try {
+					arrangedData.putComputedStatistic(graphHandler, minedDataIdentifier, characteristicParameters, null);
+				} catch (DataArrangementException e) {
+					e.printStackTrace();
+				}
 			}
 
 			System.out.println();
@@ -528,10 +537,10 @@ public class CentralOperator {
 		else	{
 			for (String pathToCover : pathsToCovers)	{
 				String path = originalGraphHandler.getAbsolutePathPossiblyWithGraphDirectory(pathToCover);
-				ISetOfGroupsOfNodes setOfGroupsOfNodes = new SetOfGroupsOfNodes(path, graph);
 				try {
+					ISetOfGroupsOfNodes setOfGroupsOfNodes = new SetOfGroupsOfNodes(path, graph);
 					visualiser.visualise(graph, setOfGroupsOfNodes, graphParameters, null);
-				} catch (VisualisationException e) {
+				} catch (VisualisationException | SetOfGroupsException e) {
 					e.printStackTrace();
 				}
 			}

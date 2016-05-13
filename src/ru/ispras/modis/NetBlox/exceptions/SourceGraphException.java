@@ -5,6 +5,10 @@ public class SourceGraphException extends Exception {
 		super(message);
 	}
 
+	public SourceGraphException(Exception e)	{
+		super(e);
+	}
+
 	/**
 	 * 
 	 */

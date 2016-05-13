@@ -39,7 +39,7 @@ public class DistributionPlotter extends JFreeChartPlotter {
 		if (currentPlotStyle == PlotStyle.BAR)	{
 			showGraphsData = plotData.toShowGraphsData();
 
-			CategoryDataset dataset = prepareDatasetForPlot(plotData);
+			CategoryDataset dataset = prepareCategoryDataset(plotData);
 
 			String plotTitle = null;	//plotData.getMeasureName()
 			JFreeChart chart = ChartFactory.createBarChart(plotTitle, X_AXIS_LABEL, Y_AXIS_LABEL, dataset,
@@ -58,21 +58,11 @@ public class DistributionPlotter extends JFreeChartPlotter {
 	}
 
 
-	private CategoryDataset prepareDatasetForPlot(SingleTypeBigChart plotData) throws ResultsPresentationException	{
-		DefaultCategoryDataset dataset = new DefaultCategoryDataset();
-
-		for (MultiDimensionalArray lineData : plotData)	{
-			processAlongXAxis(lineData, plotData.getStatisticsAggregationType(), dataset);
-		}
-
-		return dataset;
-	}
-
 	@Override
 	protected void processValuesForFixedXValue(Object xValue, CoordinateVector<Object> fixedXCoordinates,
 			MultiDimensionalArray lineData, StatisticsAggregation aggregationType, Object resultContainer) throws ResultsPresentationException	{
 		if (currentPlotStyle == PlotStyle.BAR)	{
-			DefaultCategoryDataset dataset = (DefaultCategoryDataset)resultContainer;	//XXX Check?
+			DefaultCategoryDataset dataset = (DefaultCategoryDataset)resultContainer;
 	
 			MultiDimensionalArray.DataCell dataCell = lineData.getDataCell(fixedXCoordinates);
 	
@@ -91,6 +81,11 @@ public class DistributionPlotter extends JFreeChartPlotter {
 	}
 
 	private void putDistributionToCategoryDataset(DefaultCategoryDataset dataset, NumericCharacteristic measureValues, String seriesLabel)	{
+		if (measureValues == null)	{	//#4689. Plot 'absence of results'.
+			dataset.addValue(null, seriesLabel, "null");
+			return;
+		}
+
 		NumericCharacteristic.Distribution distribution = measureValues.getDistribution();
 
 		for (Number value : distribution.getValues())	{

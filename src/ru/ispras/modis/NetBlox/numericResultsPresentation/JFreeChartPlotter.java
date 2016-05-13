@@ -24,6 +24,8 @@ import org.jfree.chart.renderer.xy.XYBarRenderer;
 import org.jfree.chart.renderer.xy.XYItemRenderer;
 import org.jfree.chart.title.TextTitle;
 import org.jfree.chart.title.Title;
+import org.jfree.data.category.CategoryDataset;
+import org.jfree.data.category.DefaultCategoryDataset;
 import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
 
@@ -56,6 +58,7 @@ public abstract class JFreeChartPlotter extends Plotter {
 	private static final String KEY_STANDARD_DEVIATION = "standardDeviation";
 	private static final String KEY_MEDIAN = "median";
 	private static final String KEY_SAMPLE_SIZE = "sampleSize";
+	private static final String KEY_NO_DATA = "noData";
 
 	protected String X_AXIS_LABEL;
 	protected String Y_AXIS_LABEL;
@@ -113,6 +116,16 @@ public abstract class JFreeChartPlotter extends Plotter {
 		return seriesCollection;
 	}
 
+	protected CategoryDataset prepareCategoryDataset(SingleTypeBigChart plotData) throws ResultsPresentationException	{
+		DefaultCategoryDataset dataset = new DefaultCategoryDataset();
+
+		for (MultiDimensionalArray lineData : plotData)	{
+			processAlongXAxis(lineData, plotData.getStatisticsAggregationType(), dataset); 
+		}
+
+		return dataset;
+	}
+
 
 	@Override
 	protected void processValuesForFixedXValue(Object xValue, CoordinateVector<Object> fixedXCoordinates,
@@ -131,6 +144,11 @@ public abstract class JFreeChartPlotter extends Plotter {
 	protected String makeSeriesLabel(MultiDimensionalArray lineData, int dimension, Object xValue, MultiDimensionalArray.DataCell dataCell)	{
 		StringBuilder builder = new StringBuilder(lineData.getLabel());
 
+		NumericCharacteristic characteristic = dataCell.getCarriedValue();
+		if (characteristic == null)	{
+			builder.append(" [").append(LanguagesConfiguration.getNetBloxLabel(KEY_NO_DATA)).append("]");
+		}
+
 		if (isXAxisSpecified())	{
 			String dimensionLabel = lineData.getDimensionLabel(dimension);
 			builder.append(", ").append(dimensionLabel).append("=").append(xValue);
@@ -141,13 +159,12 @@ public abstract class JFreeChartPlotter extends Plotter {
 				append(dataCell.getGraphParameters().getShortLabel());
 		}
 
-		if (lineData.getContainedValuesType() == NumericCharacteristic.Type.DISTRIBUTION)	{
-			NumericCharacteristic value = dataCell.getCarriedValue();
+		if (lineData.getContainedValuesType() == NumericCharacteristic.Type.DISTRIBUTION  &&  characteristic != null)	{
 			builder.append("; ").append(LanguagesConfiguration.getNetBloxLabel(KEY_DISTRIBUTION)).
-				append(": ").append(LanguagesConfiguration.getNetBloxLabel(KEY_AVERAGE)).append("=").append(value.getAverage()).
-				append(",\n").append(LanguagesConfiguration.getNetBloxLabel(KEY_STANDARD_DEVIATION)).append("=").append(value.getStandardDeviation()).
-				append(",").append(LanguagesConfiguration.getNetBloxLabel(KEY_MEDIAN)).append("=").append(value.getMedian()).
-				append(", ").append(LanguagesConfiguration.getNetBloxLabel(KEY_SAMPLE_SIZE)).append("=").append(value.getSampleSize());
+				append(": ").append(LanguagesConfiguration.getNetBloxLabel(KEY_AVERAGE)).append("=").append(characteristic.getAverage()).
+				append(",\n").append(LanguagesConfiguration.getNetBloxLabel(KEY_STANDARD_DEVIATION)).append("=").append(characteristic.getStandardDeviation()).
+				append(",").append(LanguagesConfiguration.getNetBloxLabel(KEY_MEDIAN)).append("=").append(characteristic.getMedian()).
+				append(", ").append(LanguagesConfiguration.getNetBloxLabel(KEY_SAMPLE_SIZE)).append("=").append(characteristic.getSampleSize());
 		}
 
 		builder.append(". | ");
@@ -159,13 +176,15 @@ public abstract class JFreeChartPlotter extends Plotter {
 	protected XYSeries getDistributionXYSeries(NumericCharacteristic measureValues, String seriesLabel)	{
 		XYSeries series = new XYSeries(seriesLabel);
 
-		NumericCharacteristic.Distribution distribution = measureValues.getDistribution();
-		for (Number value : distribution.getValues())	{
-			Integer numberOfOccurences = distribution.getNumberOfOccurences(value);
-			if (value.equals(0))	{
-				value = value.doubleValue() + Double.MIN_VALUE;
+		if (measureValues != null)	{
+			NumericCharacteristic.Distribution distribution = measureValues.getDistribution();
+			for (Number value : distribution.getValues())	{
+				Integer numberOfOccurences = distribution.getNumberOfOccurences(value);
+				if (value.equals(0))	{
+					value = value.doubleValue() + Double.MIN_VALUE;
+				}
+				series.add(value, numberOfOccurences);
 			}
-			series.add(value, numberOfOccurences);
 		}
 
 		return series;
@@ -330,8 +349,8 @@ public abstract class JFreeChartPlotter extends Plotter {
 
 				StringBuilder subtitleTextBuilder = new StringBuilder(fixedGraphHandler.getGraphParameters().getShortLabel()).
 						append("(|N|=").append(numberOfNodes).
-						append(", |E|=").append(numberOfEdges).
-						append("), ").append(LanguagesConfiguration.getNetBloxLabel(KEY_AVERAGE_DEGREE)).append("=").append(averageDegree);
+						append(", |E|=").append(numberOfEdges).append("), ").
+						append(LanguagesConfiguration.getNetBloxLabel(KEY_AVERAGE_DEGREE)).append("=").append(String.format("%.2f", averageDegree));
 
 				Title subtitle = new TextTitle(subtitleTextBuilder.toString());
 				chart.addSubtitle(subtitle);

@@ -16,7 +16,7 @@ import ru.ispras.modis.NetBlox.utils.MiningJobBase;
 public abstract class DescriptionMeasure extends AlgorithmDescription {
 	private static final String ARGUMENT_KEY_SUFFIX = "_argument";
 
-	private MiningJobBase jobBase;
+	protected MiningJobBase jobBase;
 
 	public DescriptionMeasure(MiningJobBase.JobBase jobBase)	{
 		this.jobBase = new MiningJobBase(jobBase);

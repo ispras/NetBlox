@@ -72,7 +72,7 @@ public abstract class Plotter {
 			processForRange(dimension, xRange, lineData, aggregationType, resultContainer);
 		}
 		else	{
-			processValuesForFixedXValue(0, MultiDimensionalArray.DEFAULT_SINGLE_COORDINATE_VALUE, lineData, aggregationType, resultContainer);
+			processValuesForFixedXValue(null, MultiDimensionalArray.DEFAULT_SINGLE_COORDINATE_VALUE, lineData, aggregationType, resultContainer);
 		}
 	}
 

@@ -1,6 +1,7 @@
 package ru.ispras.modis.NetBlox;
 
 import java.util.Collection;
+import java.util.Locale;
 import java.util.Map;
 
 import org.eclipse.equinox.app.IApplication;
@@ -17,6 +18,8 @@ public class Application implements IApplication {
 
 
 	public Object start(IApplicationContext context) throws Exception {
+		Locale.setDefault(new Locale(""));
+
 		Map<?, ?> contextArguments = context.getArguments();
 		String[] args = (String[]) contextArguments.get("application.args");
 

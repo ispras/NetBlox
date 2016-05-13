@@ -83,4 +83,14 @@ public abstract class ParametersSet {
 		}
 		return result;
 	}
+
+
+	/**
+	 * Clone the value from range if it is present.
+	 * @param cloned
+	 * @return
+	 */
+	protected <CT> ValueFromRange<CT> clone(ValueFromRange<CT> cloned)	{
+		return (cloned==null) ? null : cloned.clone();
+	}
 }

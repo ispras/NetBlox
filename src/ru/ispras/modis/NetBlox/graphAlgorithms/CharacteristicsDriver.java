@@ -14,6 +14,7 @@ import ru.ispras.modis.NetBlox.dataStructures.internalMechs.AnalysedDataIdentifi
 import ru.ispras.modis.NetBlox.dataStructures.internalMechs.ExtendedMiningParameters;
 import ru.ispras.modis.NetBlox.exceptions.MeasureComputationException;
 import ru.ispras.modis.NetBlox.exceptions.PluginException;
+import ru.ispras.modis.NetBlox.exceptions.SetOfGroupsException;
 import ru.ispras.modis.NetBlox.exceptions.SourceGraphException;
 import ru.ispras.modis.NetBlox.exceptions.StorageException;
 import ru.ispras.modis.NetBlox.graphAlgorithms.graphMining.GraphOnDrive;
@@ -135,7 +136,8 @@ public class CharacteristicsDriver {
 			}
 			else	{
 				ISetOfGroupsOfNodes minedData = StorageScanner.getMinedGroupsOfNodes(graphHandler, miningParameters);
-				result = computer.run(graphHandler.getGraph(), minedData, graphHandler.getReference(), characteristicParameters);
+				ISetOfGroupsOfNodes referenceData = graphHandler.doesReferenceSetOfGroupsOfNodesExist() ? graphHandler.getReference() : null;
+				result = computer.run(graphHandler.getGraph(), minedData, referenceData, characteristicParameters);
 			}
 			break;
 		case EXTERNAL:
@@ -147,8 +149,13 @@ public class CharacteristicsDriver {
 			}
 			else	{
 				IGraph originalGraph = graphHandler.getGraph();
-				result = computer.run(originalGraph, new SetOfGroupsOfNodes(pathToExternalFileWithGroupsOfNodes, originalGraph),
-						graphHandler.getReference(), characteristicParameters);
+				try {
+					SetOfGroupsOfNodes externalSetOfGroups = new SetOfGroupsOfNodes(pathToExternalFileWithGroupsOfNodes, originalGraph);
+					ISetOfGroupsOfNodes referenceData = graphHandler.doesReferenceSetOfGroupsOfNodesExist() ? graphHandler.getReference() : null;
+					result = computer.run(originalGraph, externalSetOfGroups, referenceData, characteristicParameters);
+				} catch (SetOfGroupsException e) {
+					throw new MeasureComputationException(e);
+				}
 			}
 			break;
 		}

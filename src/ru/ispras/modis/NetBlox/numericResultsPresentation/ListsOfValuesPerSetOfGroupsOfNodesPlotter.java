@@ -65,6 +65,10 @@ public class ListsOfValuesPerSetOfGroupsOfNodesPlotter extends JFreeChartPlotter
 	private XYSeries getCumulativeAverageXYSeries(NumericCharacteristic measureValues, String seriesLabel)	{
 		XYSeries series = new XYSeries(seriesLabel);
 
+		if (measureValues == null)	{	//#4689. Plot 'absence of results'.
+			return series;
+		}
+
 		List<Double> localValues = new ArrayList<Double>(measureValues.getValues());
 		Collections.sort(localValues, new ReverseDoubleComparator());	//Sort the list in descending order.
 
@@ -83,6 +87,10 @@ public class ListsOfValuesPerSetOfGroupsOfNodesPlotter extends JFreeChartPlotter
 
 	private XYSeries getNonAggregatedValuesSeries(NumericCharacteristic measureValues, String seriesLabel)	{
 		XYSeries series = new XYSeries(seriesLabel);
+
+		if (measureValues == null)	{	//#4689. Plot 'absence of results'.
+			return series;
+		}
 
 		List<Double> values = new ArrayList<Double>(measureValues.getValues());
 		Collections.sort(values, new ReverseDoubleComparator());	//Sort the list in descending order.
