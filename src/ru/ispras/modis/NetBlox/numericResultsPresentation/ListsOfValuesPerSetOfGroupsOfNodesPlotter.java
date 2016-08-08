@@ -10,6 +10,7 @@ import org.jfree.data.xy.XYSeries;
 import ru.ispras.modis.NetBlox.configuration.LanguagesConfiguration;
 import ru.ispras.modis.NetBlox.dataStructures.NumericCharacteristic;
 import ru.ispras.modis.NetBlox.dataStructures.internalMechs.SingleTypeBigChart;
+import ru.ispras.modis.NetBlox.exceptions.ResultsPresentationException;
 import ru.ispras.modis.NetBlox.scenario.DescriptionDataArrangement.StatisticsAggregation;
 import ru.ispras.modis.NetBlox.scenario.ScenarioTask;
 
@@ -23,7 +24,7 @@ public class ListsOfValuesPerSetOfGroupsOfNodesPlotter extends JFreeChartPlotter
 
 
 	@Override
-	protected XYSeries getXYSeries(NumericCharacteristic measureValues, String seriesLabel, StatisticsAggregation aggregationType)	{
+	protected XYSeries getXYSeries(NumericCharacteristic measureValues, String seriesLabel, StatisticsAggregation aggregationType) throws ResultsPresentationException	{
 		XYSeries series = null;
 
 		switch (aggregationType)	{
@@ -59,11 +60,12 @@ public class ListsOfValuesPerSetOfGroupsOfNodesPlotter extends JFreeChartPlotter
 			Y_AXIS_LABEL = plotData.getMeasureValuesName();
 			break;
 		}
+		Y_AXIS_LABEL = addCoefficientToLabel(Y_AXIS_LABEL, plotData);
 	}
 
 
-	private XYSeries getCumulativeAverageXYSeries(NumericCharacteristic measureValues, String seriesLabel)	{
-		XYSeries series = new XYSeries(seriesLabel);
+	private XYSeries getCumulativeAverageXYSeries(NumericCharacteristic measureValues, String seriesLabel) throws ResultsPresentationException	{
+		JFreeXYSeries series = new JFreeXYSeries(seriesLabel, currentPlotData.getAxesScale());
 
 		if (measureValues == null)	{	//#4689. Plot 'absence of results'.
 			return series;
@@ -79,14 +81,14 @@ public class ListsOfValuesPerSetOfGroupsOfNodesPlotter extends JFreeChartPlotter
 			cumulativeValue += value;
 			communityRankNumber++;
 
-			series.add(communityRankNumber, cumulativeValue / communityRankNumber);
+			series.addCorrect((Integer)communityRankNumber, (Double)(cumulativeValue / communityRankNumber));
 		}
 
 		return series;
 	}
 
-	private XYSeries getNonAggregatedValuesSeries(NumericCharacteristic measureValues, String seriesLabel)	{
-		XYSeries series = new XYSeries(seriesLabel);
+	private XYSeries getNonAggregatedValuesSeries(NumericCharacteristic measureValues, String seriesLabel) throws ResultsPresentationException	{
+		JFreeXYSeries series = new JFreeXYSeries(seriesLabel, currentPlotData.getAxesScale());
 
 		if (measureValues == null)	{	//#4689. Plot 'absence of results'.
 			return series;
@@ -99,7 +101,7 @@ public class ListsOfValuesPerSetOfGroupsOfNodesPlotter extends JFreeChartPlotter
 		for (Double value : values)	{
 			orderNumber++;
 
-			series.add(orderNumber, value);
+			series.addCorrect((Integer)orderNumber, value);
 		}
 
 		return series;

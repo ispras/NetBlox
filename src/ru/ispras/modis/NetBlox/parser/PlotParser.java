@@ -8,6 +8,7 @@ import ru.ispras.modis.NetBlox.parser.xmlParser.ParserContext;
 import ru.ispras.modis.NetBlox.parser.xmlParser.XMLElementProcessor;
 import ru.ispras.modis.NetBlox.parser.xmlParser.XMLStringValueProcessor;
 import ru.ispras.modis.NetBlox.scenario.DescriptionDataArrangement.AxesScale;
+import ru.ispras.modis.NetBlox.scenario.DescriptionDataArrangement.BoxAndWhiskersStyle;
 import ru.ispras.modis.NetBlox.scenario.DescriptionDataArrangement.PlotStyle;
 import ru.ispras.modis.NetBlox.scenario.DescriptionDataArrangement.StatisticsAggregation;
 import ru.ispras.modis.NetBlox.scenario.RangeOfValues;
@@ -44,11 +45,20 @@ public class PlotParser extends DataArrangementParser {
 		}
 	}
 
+	class ValuesScalingProcessor extends XMLStringValueProcessor	{
+		@Override
+		public void closeElement()	{
+			super.closeElement();
+			currentArrangementDescription.setValuesScaling(Float.parseFloat(getText()));
+		}
+	}
+
 
 	private static final String TAG_X = "x";
 	private static final String TAG_LINE = "line";
 	private static final String TAG_WIDTH = "width";
 	private static final String TAG_HEIGHT = "height";
+	private static final String TAG_VALUE_SCALING_COEFFICIENT = "valuesScalingCoef";
 
 	private final FixedVaryingParametersSetParser lineDescriptionProcessor;
 
@@ -73,12 +83,16 @@ public class PlotParser extends DataArrangementParser {
 	private static final String ATTRIBUTE_SHOW_LEGEND = "showLegend";
 	private static final String ATTRIBUTE_PLOT_INCLUDES_ZERO = "plotIncludesZero";
 
+	private static final String ATTRIBUTE_BOX_AND_WHISKERS_STYLE = "boxAndWhiskers";	// min_max, noBox
+	private static final String ATTRIBUTE_BOX_AND_WHISKERS_NO_BOX = "no_box";
+
 
 	public PlotParser()	{
 		addTaggedParser(TAG_X, new XAxisProcessor());
 		addTaggedParser(TAG_LINE, lineDescriptionProcessor = new FixedVaryingParametersSetParser());
 		addTaggedParser(TAG_WIDTH, new WidthProcessor());
 		addTaggedParser(TAG_HEIGHT, new HeightProcessor());
+		addTaggedParser(TAG_VALUE_SCALING_COEFFICIENT, new ValuesScalingProcessor());
 	}
 
 
@@ -145,6 +159,13 @@ public class PlotParser extends DataArrangementParser {
 		booleanDataString = attributes.getValue(ATTRIBUTE_PLOT_INCLUDES_ZERO);
 		if (booleanDataString != null  &&  !booleanDataString.isEmpty())	{
 			currentArrangementDescription.plotIncludesZero(Boolean.parseBoolean(booleanDataString));
+		}
+
+		String boxAndWhiskersStyle = attributes.getValue(ATTRIBUTE_BOX_AND_WHISKERS_STYLE);
+		if (boxAndWhiskersStyle != null  &&  !boxAndWhiskersStyle.isEmpty())	{
+			if (boxAndWhiskersStyle.equalsIgnoreCase(ATTRIBUTE_BOX_AND_WHISKERS_NO_BOX))	{
+				currentArrangementDescription.setBoxAndWhiskersStyle(BoxAndWhiskersStyle.NO_BOX);
+			}
 		}
 
 		currentArrangementDescription.addDimension(1, RangeOfValues.NO_RANGE_ID);	//Set default value for the 1st dimension ID, in case it won't be specified.	

@@ -19,13 +19,14 @@ public class PlotsDrawer {
 
 		for (SingleTypeBigChart plotData : differentPlots)	{
 			NumericCharacteristic.Type individualValueType = plotData.getIndividualValueType();
-			if (individualValueType == null)	{
-				String errorMessage = "ERROR:\tThere're no computations results for "+plotData.getChartName();
-				System.out.println(errorMessage);
-				continue;
-			}
-
 			try	{
+				if (individualValueType == null)	{
+					String errorMessage = "WARNING:\tThere're no computation results for any of lines of "+plotData.getChartName();
+					System.out.println(errorMessage);
+					singleValuesPlotter.drawPlot(plotData);
+					continue;
+				}
+
 				switch (individualValueType)	{
 				case SINGLE_VALUE:
 					singleValuesPlotter.drawPlot(plotData);

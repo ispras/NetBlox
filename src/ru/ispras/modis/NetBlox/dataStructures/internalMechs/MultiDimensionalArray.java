@@ -297,19 +297,33 @@ public class MultiDimensionalArray implements Cloneable {
 
 		Iterator<DataCell> dataCellsIterator = toBeAveraged.iterator();
 		DataCell dataCell = dataCellsIterator.next();
+		if (dataCell == null)	{	//#4761. Bring information about failures of plug-ins to plots.
+			return dataCell;
+		}
+
 		NumericCharacteristic result = dataCell.getCarriedValue();
 		if (result != null)	{
 			while (dataCellsIterator.hasNext())	{
-				NumericCharacteristic otherCharacteristic = dataCellsIterator.next().getCarriedValue();
+				dataCell = dataCellsIterator.next();
+				if (dataCell == null)	{	//#4761. Bring information about failures of plug-ins to plots.
+					System.out.println("WARNING:\tAt least one of plug-ins with methods has fallen down.");
+					return dataCell;
+				}
+
+				NumericCharacteristic otherCharacteristic = dataCell.getCarriedValue();
 				if (otherCharacteristic != null)	{
 					result.add(otherCharacteristic);	//XXX Is supported only for SINGLE_VALUE now.
 				}
 				else	{
-					throw new ResultsPresentationException("At least one of characteristic values in a row to be averaged is NULL.");
+					System.out.println("WARNING:\tAt least one of characteristic values in a row to be averaged was not computed "
+							+"(one of methods in the pipeline got no results).");
+					result = null;	//#4689. Plot 'absence of data'.
+					numberOfElements = 1;
+					break;
 				}
 			}
 			if (numberOfElements > 1)	{
-				result.divideBy(numberOfElements);						//XXX Is supported only for SINGLE_VALUE now.
+				result.divideBy(numberOfElements);
 			}
 		}
 
@@ -319,7 +333,12 @@ public class MultiDimensionalArray implements Cloneable {
 	public Collection<DataCell> getMultipleValues(CoordinateVector<Object> coordinates) throws ResultsPresentationException	{
 		Map<Object, DataCell> mappedMultipleValues = dataContainer.getTails(coordinates);
 		if (mappedMultipleValues == null)	{
-			throw new ResultsPresentationException("There's no data (results) required by scenario data arrangement description.");
+			System.out.println(
+					"WARNING:\tAn algorithm mentioned in scenario data arrangement description has failed and there's no data (results) for it. "+
+					"Pay attention to plots.");
+			Collection<DataCell> nullResult = new ArrayList<DataCell>(1);
+			nullResult.add(null);
+			return nullResult;	//#4761. Bring information about failures of plug-ins to plots.
 		}
 		return mappedMultipleValues.values();
 	}
@@ -329,14 +348,26 @@ public class MultiDimensionalArray implements Cloneable {
 	 */
 	public boolean hasDataToBeAveraged() throws ResultsPresentationException	{
 		Collection<CoordinateVector<Object>> allCoordinates = dataContainer.getHeads();
+		if (allCoordinates.isEmpty())	{
+			return false;
+		}
 		CoordinateVector<Object> firstCoordinate = allCoordinates.iterator().next();
 
 		Map<Object, DataCell> mappedMultipleValues = dataContainer.getTails(firstCoordinate);
 		if (mappedMultipleValues == null)	{
-			throw new ResultsPresentationException("There's no data (results) required by scenario data arrangement description.");
+			System.out.println(
+					"WARNING:\tAn algorithm mentioned in scenario data arrangement description has failed and there's no data (results) for it. "+
+					"Pay attention to plots.");
+			return false;
 		}
 
 		if (mappedMultipleValues.size() > 1)	{
+			for (DataCell dataCell : mappedMultipleValues.values())	{
+				//#4761. If one of the required plug-ins has failed or found no results then behave as if all in the line did the same.
+				if (dataCell == null  ||  dataCell.getCarriedValue() == null)	{
+					return false;
+				}
+			}
 			return true;
 		}
 		return false;

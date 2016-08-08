@@ -22,6 +22,7 @@ public class DescriptionDataArrangement {
 	public enum PlotStyle {LINE, BAR, STEP, SCATTER, HISTOGRAM};
 	public enum AxesScale {SIMPLE, X_LOG10, Y_LOG10, XY_LOG10};
 	public enum StatisticsAggregation {NONE, DISTRIBUTION, BIG_INTERVALS, CUMULATIVE_AVERAGE};
+	public enum BoxAndWhiskersStyle {MIN_MAX, NO_BOX};	//MIN_MAX: whiskers for min and max, box represents 1-3 quartiles range.
 
 
 	private CoordinateVector<String> variationIdsForDimensions;
@@ -32,12 +33,15 @@ public class DescriptionDataArrangement {
 	private PlotStyle plotStyle = PlotStyle.LINE;
 	private AxesScale axesScale = AxesScale.SIMPLE;
 	private StatisticsAggregation statisticsAggregation = StatisticsAggregation.DISTRIBUTION;
+	private BoxAndWhiskersStyle boxAndWhiskersStyle = BoxAndWhiskersStyle.MIN_MAX;
 	private boolean showGraphsData = false;	// whether to add subtitles with graphs data
 	private boolean showLegend = true;	// whether to draw legend for the plot
 	private boolean plotIncludesZero = true;
 
 	private int plotWidth = 800;
 	private int plotHeight = 600;
+
+	private Float valuesScalingCoefficient = null;
 
 
 	public DescriptionDataArrangement(String name)	{
@@ -103,6 +107,15 @@ public class DescriptionDataArrangement {
 	}
 
 
+	public void setBoxAndWhiskersStyle(BoxAndWhiskersStyle style)	{
+		boxAndWhiskersStyle = style;
+	}
+
+	public BoxAndWhiskersStyle getBoxAndWhiskersStyle()	{
+		return boxAndWhiskersStyle;
+	}
+
+
 	public void setShowGraphsData(boolean b)	{
 		showGraphsData = b;
 	}
@@ -136,6 +149,10 @@ public class DescriptionDataArrangement {
 		plotHeight = height;
 	}
 
+	public void setValuesScaling(Float coefficient)	{
+		valuesScalingCoefficient = coefficient;
+	}
+
 
 	public int getPlotWidth()	{
 		return plotWidth;
@@ -143,5 +160,9 @@ public class DescriptionDataArrangement {
 
 	public int getPlotHeight()	{
 		return plotHeight;
+	}
+
+	public Float getValuesScalingCoefficient()	{
+		return valuesScalingCoefficient;
 	}
 }

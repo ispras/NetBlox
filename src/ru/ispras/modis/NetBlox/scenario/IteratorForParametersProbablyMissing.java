@@ -32,6 +32,10 @@ public abstract class IteratorForParametersProbablyMissing implements Iterator<P
 	}
 
 	protected <T> ValueFromRange<T> makeValueFromRangeInstance(RangeOfValues<T> range, T value)	{
-		return (value==null) ? null : new ValueFromRange<T>(range.getRangeId(), value);
+		if (value == null)	{
+			return null;
+		}
+		String rangeId = (range==null) ? RangeOfValues.NO_RANGE_ID : range.getRangeId();
+		return new ValueFromRange<T>(rangeId, value);
 	}
 }

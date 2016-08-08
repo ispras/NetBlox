@@ -8,8 +8,10 @@ import java.util.Map;
 
 import ru.ispras.modis.NetBlox.dataManagement.GraphOnDriveHandler;
 import ru.ispras.modis.NetBlox.dataStructures.NumericCharacteristic;
+import ru.ispras.modis.NetBlox.dataStructures.NumericCharacteristic.Type;
 import ru.ispras.modis.NetBlox.exceptions.DataArrangementException;
 import ru.ispras.modis.NetBlox.scenario.DescriptionDataArrangement;
+import ru.ispras.modis.NetBlox.scenario.DescriptionDataArrangement.StatisticsAggregation;
 import ru.ispras.modis.NetBlox.scenario.DescriptionMeasure;
 import ru.ispras.modis.NetBlox.scenario.GraphMiningParametersSet;
 import ru.ispras.modis.NetBlox.scenario.GraphParametersSet;
@@ -202,6 +204,19 @@ public class ArrangedData {
 				continue;
 			}
 
+			NumericCharacteristic plottedValue = value;
+			Float valuesScalingCoefficient = setOfArraysForValues.getValuesScalingCoefficient();
+			if (valuesScalingCoefficient != null  &&  !valuesScalingCoefficient.equals(1)  &&  value != null)	{
+				plottedValue = new NumericCharacteristic(value);
+				if (setOfArraysForValues.getStatisticsAggregationType() == StatisticsAggregation.DISTRIBUTION
+						&&  plottedValue.getType() == Type.LIST_OF_VALUES)	{
+					plottedValue.setDistributionScalingCoefficient(valuesScalingCoefficient);
+				}
+				else	{
+					plottedValue.multiplyBy(valuesScalingCoefficient);
+				}
+			}
+
 			for (MultiDimensionalArray arrayForValues : setOfArraysForValues)	{
 				LabeledSetOfValues parametersPrespecifiedForChart = arrayForValues.getSpecifiedFixedParameters();
 				if (!doesValueBelongToLine(parametersPrespecifiedForChart, graphHandler.getGraphParameters(),
@@ -210,7 +225,7 @@ public class ArrangedData {
 				}
 
 				try	{
-					arrayForValues.putValue(value, graphHandler, analysedDataIdentifier, fixedParametersMeasure);
+					arrayForValues.putValue(plottedValue, graphHandler, analysedDataIdentifier, fixedParametersMeasure);
 				} catch (DataArrangementException e) {
 					throw new DataArrangementException("Failed to put value into arrangement structure: "+e.getMessage());
 				}

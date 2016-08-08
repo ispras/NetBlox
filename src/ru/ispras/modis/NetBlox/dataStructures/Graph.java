@@ -169,7 +169,7 @@ public class Graph implements IGraph {
 
 		Float weight = null;
 		if (weighted)	{
-			if (edgeNodes.length == 2)	{
+			if (idStrings.length == 2)	{
 				weight = 1f;
 			}
 			else	{
@@ -194,8 +194,12 @@ public class Graph implements IGraph {
 
 			nodeAttributesNames = parseAttributesNames(linesIterator.next());
 
+			int numberOfUnconnectedNodes = 0;
 			while (linesIterator.hasNext())	{
-				parseNodeAttributesValues(linesIterator.next());
+				numberOfUnconnectedNodes += parseNodeAttributesValues(linesIterator.next());
+			}
+			if (numberOfUnconnectedNodes > 0)	{
+				System.out.println("\r\nWARNING: "+numberOfUnconnectedNodes+" nodes from attributes file do not have in-/out-coming edges.");
 			}
 		} catch (IOException e) {	//We have checked it exists.
 			String errorMessage = "Couldn't read attributes file: "+e.getMessage();
@@ -216,23 +220,26 @@ public class Graph implements IGraph {
 	}
 
 	//TODO This version doesn't consider attributes that consist of several words including commas (and other punctuation delimiters).
-	private void parseNodeAttributesValues(String lineWithValues)	{
+	private int parseNodeAttributesValues(String lineWithValues)	{
 		String[] idAndValues = lineWithValues.split(WHITESPACE_CHARACTER_REGEX);
 		if (idAndValues==null || idAndValues.length==0)	{
-			return;
+			return 0;
 		}
+
+		int numberOfUnconnectedNodes = 0;
 
 		Integer id = Integer.parseInt(idAndValues[0]);
 		Node node = nodes.get(id);
 		if (node == null)	{
-			System.out.println("WARNING: Node "+idAndValues[0]+" does not have in-/out-coming edges.");
+			//System.out.println("WARNING: Node "+idAndValues[0]+" does not have in-/out-coming edges.");
+			numberOfUnconnectedNodes = 1;
 			node = new Node(id);
 			nodes.put(id, node);
 		}
 
 		if (idAndValues.length==1)	{
 			System.out.println("WARNING: Node "+idAndValues[0]+" is listed in attributes file with NO attributes.");
-			return;
+			return numberOfUnconnectedNodes;
 		}
 		Iterator<String> attributesNamesIterator = nodeAttributesNames.iterator();
 		String[] attributesValues = idAndValues[1].split(ATTRIBUTES_VALUES_DELIMITER_REGEX);
@@ -244,6 +251,8 @@ public class Graph implements IGraph {
 			String value = attributesValues[i];
 			node.setAttribute(name, value);
 		}
+
+		return numberOfUnconnectedNodes;
 	}
 
 

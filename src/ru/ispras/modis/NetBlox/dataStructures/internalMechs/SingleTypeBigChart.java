@@ -14,6 +14,7 @@ import ru.ispras.modis.NetBlox.dataStructures.NumericCharacteristic;
 import ru.ispras.modis.NetBlox.dataStructures.NumericCharacteristic.Type;
 import ru.ispras.modis.NetBlox.scenario.DescriptionDataArrangement;
 import ru.ispras.modis.NetBlox.scenario.DescriptionDataArrangement.AxesScale;
+import ru.ispras.modis.NetBlox.scenario.DescriptionDataArrangement.BoxAndWhiskersStyle;
 import ru.ispras.modis.NetBlox.scenario.DescriptionDataArrangement.PlotStyle;
 import ru.ispras.modis.NetBlox.scenario.DescriptionDataArrangement.StatisticsAggregation;
 import ru.ispras.modis.NetBlox.scenario.DescriptionMeasure;
@@ -83,11 +84,13 @@ public class SingleTypeBigChart implements Iterable<MultiDimensionalArray>	{
 
 	public NumericCharacteristic.Type getIndividualValueType()	{
 		Iterator<MultiDimensionalArray> lesserChartsIterator = lesserChartsForFixedParametersSets.iterator();
-		if (!lesserChartsIterator.hasNext())	{
-			return null;
+		while (lesserChartsIterator.hasNext())	{
+			NumericCharacteristic.Type result = lesserChartsIterator.next().getContainedValuesType();
+			if (result != null)	{
+				return result;
+			}
 		}
-
-		return lesserChartsIterator.next().getContainedValuesType();
+		return null;
 	}
 
 	public PlotStyle getPlotStyle()	{
@@ -102,12 +105,19 @@ public class SingleTypeBigChart implements Iterable<MultiDimensionalArray>	{
 		return dataArrangementDescription.getStatisticsAggregationType();
 	}
 
+	public BoxAndWhiskersStyle getBoxAndWhiskersStyle()	{
+		return dataArrangementDescription.getBoxAndWhiskersStyle();
+	}
+
 	public int getPlotWidth()	{
 		return dataArrangementDescription.getPlotWidth();
 	}
-
 	public int getPlotHeight()	{
 		return dataArrangementDescription.getPlotHeight();
+	}
+
+	public Float getValuesScalingCoefficient()	{
+		return dataArrangementDescription.getValuesScalingCoefficient();
 	}
 
 	public boolean toShowGraphsData()	{

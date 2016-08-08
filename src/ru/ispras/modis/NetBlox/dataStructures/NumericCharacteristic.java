@@ -26,13 +26,19 @@ public class NumericCharacteristic {
 	public enum Type {	SINGLE_VALUE, LIST_OF_VALUES, DISTRIBUTION, FUNCTION	}
 
 	public class Distribution	{
-		private Map<Number, Integer> numbersOfOccurences;
+		private SortedMap<Number, Integer> numbersOfOccurences;
 		private int numberOfAddedValues;
 
 		public Distribution()	{
-			numbersOfOccurences = new HashMap<Number, Integer>();
+			numbersOfOccurences = new TreeMap<Number, Integer>();
 			numberOfAddedValues = 0;
 		}
+
+		public Distribution(Distribution toCopy)	{
+			numbersOfOccurences = new TreeMap<Number, Integer>(toCopy.numbersOfOccurences);
+			numberOfAddedValues = toCopy.numberOfAddedValues;
+		}
+
 
 		public void addValue(Number value)	{
 			Integer numberOfOccurences;
@@ -91,6 +97,9 @@ public class NumericCharacteristic {
 	private List<Double> listOfValues = null;
 	private Map<Double, Double> function = null;
 
+	private Float distributionScalingCoefficient = null;
+
+
 	public NumericCharacteristic(Type type)	{
 		this.type = type;
 		if (type == Type.DISTRIBUTION)	{
@@ -118,6 +127,25 @@ public class NumericCharacteristic {
 		}
 		this.type = type;
 		listOfValues = values;
+	}
+
+	public NumericCharacteristic(NumericCharacteristic toCopy)	{
+		type = toCopy.type;
+		switch (type)	{
+		case SINGLE_VALUE:
+			singleValue = toCopy.singleValue;
+			break;
+		case LIST_OF_VALUES:
+			listOfValues = new ArrayList<Double>(toCopy.listOfValues);
+			break;
+		case DISTRIBUTION:
+			distribution = new Distribution(toCopy.distribution);
+			break;
+		case FUNCTION:
+			function = new HashMap<Double, Double>(toCopy.function);
+			break;
+		}
+		//distributionScalingCoefficient-? Unnecessary.
 	}
 
 
@@ -180,7 +208,9 @@ public class NumericCharacteristic {
 			//XXX Error. Throw exception.
 		}
 		else if (type == Type.LIST_OF_VALUES)	{
-			distribution = makeDistributionOutOfListOfValues();
+			if (distribution == null)	{
+				distribution = makeDistributionOutOfListOfValues();
+			}
 		}
 
 		return distribution;
@@ -343,14 +373,53 @@ public class NumericCharacteristic {
 			singleValue /= divisor.floatValue();
 			break;
 		case LIST_OF_VALUES:
-			//TODO Implement division of lists of characteristic values by divisor.
-			throw new UnsupportedOperationException("Do not support division of lists of characteristic values.");
+			List<Double> newList = new ArrayList<Double>(listOfValues.size());
+			for (Double value : listOfValues)	{
+				newList.add(value / divisor.doubleValue());
+			}
+			listOfValues = newList;
+			break;
 		case DISTRIBUTION:
-			//TODO Implement division of distributions by divisor.
-			throw new UnsupportedOperationException("Do not support division of distributions.");
+			//All numbers of occurrences are to be multiplied, so the overall distribution doesn't change.
+			//So no need to do the multiplications in 1st place.
+			break;
 		case FUNCTION:
-			//TODO Implement division of function values by divisor.
-			throw new UnsupportedOperationException("Do not support division of functions.");
+			for (Map.Entry<Double, Double> argumentAndValue : function.entrySet())	{
+				Double value = argumentAndValue.getValue() / divisor.doubleValue();
+				argumentAndValue.setValue(value);
+			}
+			break;
 		}
+	}
+
+	public void multiplyBy(Number multiplier)	{
+		switch (type)	{
+		case SINGLE_VALUE:
+			singleValue *= multiplier.floatValue();
+			break;
+		case LIST_OF_VALUES:
+			List<Double> newList = new ArrayList<Double>(listOfValues.size());
+			for (Double value : listOfValues)	{
+				newList.add(value * multiplier.doubleValue());
+			}
+			listOfValues = newList;
+			break;
+		case DISTRIBUTION:
+			setDistributionScalingCoefficient(multiplier.floatValue());
+			break;
+		case FUNCTION:
+			for (Map.Entry<Double, Double> argumentAndValue : function.entrySet())	{
+				Double value = argumentAndValue.getValue() * multiplier.doubleValue();
+				argumentAndValue.setValue(value);
+			}
+			break;
+		}
+	}
+
+	public void setDistributionScalingCoefficient(Float coefficient)	{
+		distributionScalingCoefficient = coefficient;
+	}
+	public Float getDistributionScalingCoefficient()	{
+		return distributionScalingCoefficient;
 	}
 }

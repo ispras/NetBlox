@@ -4,13 +4,13 @@ import java.awt.Color;
 
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.JFreeChart;
+import org.jfree.chart.axis.ValueAxis;
 import org.jfree.chart.plot.CategoryPlot;
 import org.jfree.chart.plot.DrawingSupplier;
 import org.jfree.chart.plot.PlotOrientation;
 import org.jfree.chart.renderer.category.BarRenderer;
 import org.jfree.chart.renderer.category.StandardBarPainter;
 import org.jfree.data.category.CategoryDataset;
-import org.jfree.data.category.DefaultCategoryDataset;
 import org.jfree.data.xy.XYSeries;
 
 import ru.ispras.modis.NetBlox.JFreeChartUtils;
@@ -25,9 +25,6 @@ import ru.ispras.modis.NetBlox.scenario.DescriptionDataArrangement.StatisticsAgg
 import ru.ispras.modis.NetBlox.scenario.ScenarioTask;
 
 public class DistributionPlotter extends JFreeChartPlotter {
-	private PlotStyle currentPlotStyle;
-
-
 	public DistributionPlotter(ScenarioTask scenarioTask) {
 		super(scenarioTask);
 	}
@@ -35,34 +32,34 @@ public class DistributionPlotter extends JFreeChartPlotter {
 
 	@Override
 	public void plotValuesDistributedOverCommunities(SingleTypeBigChart plotData) throws ResultsPresentationException	{
-		currentPlotStyle = plotData.getPlotStyle();
-		if (currentPlotStyle == PlotStyle.BAR)	{
-			showGraphsData = plotData.toShowGraphsData();
+		if (plotData.getPlotStyle() == PlotStyle.BAR)	{
+			currentPlotData = plotData;
 
 			CategoryDataset dataset = prepareCategoryDataset(plotData);
 
 			String plotTitle = null;	//plotData.getMeasureName()
+			defineAxesLabels(plotData);
+
 			JFreeChart chart = ChartFactory.createBarChart(plotTitle, X_AXIS_LABEL, Y_AXIS_LABEL, dataset,
 					PlotOrientation.VERTICAL, plotData.showLegend(), false, false);
-			tweakPlot(chart.getCategoryPlot());
+			tweakBarPlot(chart.getCategoryPlot());
 			addSubtitles(chart, plotData);
 
 			JFreeChartUtils.exportToPNG(makePNGPlotFilePathname(plotData), chart, plotData.getPlotWidth(), plotData.getPlotHeight());
 
-			showGraphsData = null;
+			currentPlotData = null;
 		}
 		else	{
 			super.plotValuesDistributedOverCommunities(plotData);
 		}
-		currentPlotStyle = null;
 	}
 
 
 	@Override
 	protected void processValuesForFixedXValue(Object xValue, CoordinateVector<Object> fixedXCoordinates,
 			MultiDimensionalArray lineData, StatisticsAggregation aggregationType, Object resultContainer) throws ResultsPresentationException	{
-		if (currentPlotStyle == PlotStyle.BAR)	{
-			DefaultCategoryDataset dataset = (DefaultCategoryDataset)resultContainer;
+		if (currentPlotData.getPlotStyle() == PlotStyle.BAR)	{
+			JFreeCategoryDataset dataset = (JFreeCategoryDataset)resultContainer;
 	
 			MultiDimensionalArray.DataCell dataCell = lineData.getDataCell(fixedXCoordinates);
 	
@@ -72,7 +69,8 @@ public class DistributionPlotter extends JFreeChartPlotter {
 				putDistributionWithBiggerIntervalsToDataset(dataset, value, seriesLabel);
 				break;*/
 			default:
-				putDistributionToCategoryDataset(dataset, dataCell.getCarriedValue(), seriesLabel);
+				NumericCharacteristic measureValues = (dataCell==null) ? null : dataCell.getCarriedValue();	//#4761. dataCell==null if a plug-in fell down
+				putDistributionToCategoryDataset(dataset, measureValues, seriesLabel);
 			}
 		}
 		else	{
@@ -80,25 +78,33 @@ public class DistributionPlotter extends JFreeChartPlotter {
 		}
 	}
 
-	private void putDistributionToCategoryDataset(DefaultCategoryDataset dataset, NumericCharacteristic measureValues, String seriesLabel)	{
+	private void putDistributionToCategoryDataset(JFreeCategoryDataset dataset, NumericCharacteristic measureValues, String seriesLabel) throws ResultsPresentationException	{
 		if (measureValues == null)	{	//#4689. Plot 'absence of results'.
 			dataset.addValue(null, seriesLabel, "null");
 			return;
 		}
 
 		NumericCharacteristic.Distribution distribution = measureValues.getDistribution();
+		Float scalingCoefficient = measureValues.getDistributionScalingCoefficient();
 
 		for (Number value : distribution.getValues())	{
-			Integer numberOfOccurences = distribution.getNumberOfOccurences(value);
-			if (value.equals(0))	{
-				value = value.doubleValue() + Double.MIN_VALUE;
-			}
+			Number numberOfOccurences = (scalingCoefficient==null) ? distribution.getNumberOfOccurences(value) :
+				scalingCoefficient * distribution.getNumberOfOccurences(value);
 
-			dataset.addValue(numberOfOccurences, seriesLabel, value.toString());
+			//dataset.addCorrectValue(numberOfOccurences, seriesLabel, value.toString());
+			if (value instanceof Integer)	{
+				dataset.addCorrectValue(numberOfOccurences, seriesLabel, value.intValue());
+			}
+			else if (value instanceof Float)	{
+				dataset.addCorrectValue(numberOfOccurences, seriesLabel, value.floatValue());
+			}
+			else	{
+				dataset.addCorrectValue(numberOfOccurences, seriesLabel, value.doubleValue());
+			}
 		}
 	}
 
-	/*private void putDistributionWithBiggerIntervalsToDataset(DefaultCategoryDataset dataset, CharacteristicOrMeasure measureValues, String seriesLabel)	{
+	/*private void putDistributionWithBiggerIntervalsToDataset(JFreeCategoryDataset dataset, CharacteristicOrMeasure measureValues, String seriesLabel)	{
 		CharacteristicOrMeasure.Distribution distribution = measureValues.getDistribution();
 
 		int numberOfIntervals = (int) Math.floor(Math.sqrt(distribution.getTotalNumberOfOccurences()));
@@ -139,13 +145,25 @@ public class DistributionPlotter extends JFreeChartPlotter {
 
 
 	@Override
-	protected XYSeries getXYSeries(NumericCharacteristic measureValues, String seriesLabel, StatisticsAggregation aggregationType)	{
+	protected XYSeries getXYSeries(NumericCharacteristic measureValues, String seriesLabel, StatisticsAggregation aggregationType) throws ResultsPresentationException	{
 		return getDistributionXYSeries(measureValues, seriesLabel);
 	}
 
 
-	private void tweakPlot(CategoryPlot plot)	{
-		//TODO Tweak axes.
+	private void tweakBarPlot(CategoryPlot plot)	{
+		BarRenderer barRenderer = (BarRenderer) plot.getRenderer();
+
+		switch (currentPlotData.getAxesScale())	{	//Change range axis.
+		case Y_LOG10:
+		case XY_LOG10:
+			ValueAxis yAxis = new JFreeLogarithmic10Axis(Y_AXIS_LABEL);
+			yAxis.setMinorTickMarksVisible(true);
+
+			barRenderer.setBase(1.0);
+
+			plot.setRangeAxis(yAxis);
+			break;
+		}
 
 		plot.setBackgroundPaint(Color.white);
 		plot.setDomainGridlinePaint(Color.gray);
@@ -155,14 +173,11 @@ public class DistributionPlotter extends JFreeChartPlotter {
 		DrawingSupplier drawingSupplier = texturesAdapter.getDrawingSupplier();
 		plot.setDrawingSupplier(drawingSupplier);
 
-		if (plot.getRenderer() instanceof BarRenderer)	{
-			BarRenderer barRenderer = (BarRenderer) plot.getRenderer();
-			barRenderer.setBarPainter( new StandardBarPainter() );
-			barRenderer.setGradientPaintTransformer(null);
+		barRenderer.setBarPainter( new StandardBarPainter() );
+		barRenderer.setGradientPaintTransformer(null);
 
-			barRenderer.setBaseOutlinePaint(Color.black); // set bar outline
-			barRenderer.setDrawBarOutline(true);
-		}
+		barRenderer.setBaseOutlinePaint(Color.black); // set bar outline
+		barRenderer.setDrawBarOutline(true);
 
 		tweakLegend(plot);
 	}
@@ -171,6 +186,6 @@ public class DistributionPlotter extends JFreeChartPlotter {
 	@Override
 	protected void defineAxesLabels(SingleTypeBigChart plotData)	{
 		X_AXIS_LABEL = plotData.getMeasureValuesName();
-		Y_AXIS_LABEL = LanguagesConfiguration.getNetBloxLabel(KEY_NUMBER_OF_OCCURENCES);
+		Y_AXIS_LABEL = addCoefficientToLabel(LanguagesConfiguration.getNetBloxLabel(KEY_NUMBER_OF_OCCURENCES), plotData);
 	}
 }

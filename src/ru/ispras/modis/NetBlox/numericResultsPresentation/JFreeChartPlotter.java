@@ -25,7 +25,6 @@ import org.jfree.chart.renderer.xy.XYItemRenderer;
 import org.jfree.chart.title.TextTitle;
 import org.jfree.chart.title.Title;
 import org.jfree.data.category.CategoryDataset;
-import org.jfree.data.category.DefaultCategoryDataset;
 import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
 
@@ -39,8 +38,10 @@ import ru.ispras.modis.NetBlox.dataStructures.internalMechs.MultiDimensionalArra
 import ru.ispras.modis.NetBlox.dataStructures.internalMechs.SingleTypeBigChart;
 import ru.ispras.modis.NetBlox.exceptions.ResultsPresentationException;
 import ru.ispras.modis.NetBlox.exceptions.SourceGraphException;
+import ru.ispras.modis.NetBlox.scenario.DescriptionDataArrangement.PlotStyle;
 import ru.ispras.modis.NetBlox.scenario.DescriptionDataArrangement.StatisticsAggregation;
 import ru.ispras.modis.NetBlox.scenario.ScenarioTask;
+import ru.ispras.modis.NetBlox.utils.MathUtils;
 
 /**
  * This plotter uses JFreeChart library to draw plots.
@@ -58,7 +59,9 @@ public abstract class JFreeChartPlotter extends Plotter {
 	private static final String KEY_STANDARD_DEVIATION = "standardDeviation";
 	private static final String KEY_MEDIAN = "median";
 	private static final String KEY_SAMPLE_SIZE = "sampleSize";
-	private static final String KEY_NO_DATA = "noData";
+
+	protected static final String KEY_NO_DATA = "noData";
+	protected static final String KEY_PLUGIN_FELL_DOWN = "pluginFellDown";
 
 	protected String X_AXIS_LABEL;
 	protected String Y_AXIS_LABEL;
@@ -67,7 +70,7 @@ public abstract class JFreeChartPlotter extends Plotter {
 
 	protected JFreeTextures texturesAdapter;
 
-	protected Boolean showGraphsData = null;	//keep it null when done with plotting
+	protected SingleTypeBigChart currentPlotData = null;	//keep it null when done with plotting
 
 
 	public JFreeChartPlotter(ScenarioTask scenarioTask)	{
@@ -78,7 +81,7 @@ public abstract class JFreeChartPlotter extends Plotter {
 
 
 	public void plotValuesDistributedOverCommunities(SingleTypeBigChart plotData) throws ResultsPresentationException	{
-		showGraphsData = plotData.toShowGraphsData();
+		currentPlotData = plotData;
 
 		XYSeriesCollection seriesCollectionForPlotting = prepareSeriesCollection(plotData);
 
@@ -86,7 +89,7 @@ public abstract class JFreeChartPlotter extends Plotter {
 
 		JFreeChartUtils.exportToPNG(makePNGPlotFilePathname(plotData), chart, plotData.getPlotWidth(), plotData.getPlotHeight());
 
-		showGraphsData = null;
+		currentPlotData = null;
 	}
 
 
@@ -117,7 +120,7 @@ public abstract class JFreeChartPlotter extends Plotter {
 	}
 
 	protected CategoryDataset prepareCategoryDataset(SingleTypeBigChart plotData) throws ResultsPresentationException	{
-		DefaultCategoryDataset dataset = new DefaultCategoryDataset();
+		JFreeCategoryDataset dataset = new JFreeCategoryDataset(currentPlotData.getAxesScale());
 
 		for (MultiDimensionalArray lineData : plotData)	{
 			processAlongXAxis(lineData, plotData.getStatisticsAggregationType(), dataset); 
@@ -137,16 +140,23 @@ public abstract class JFreeChartPlotter extends Plotter {
 
 		String seriesLabel = makeSeriesLabel(lineData, MultiDimensionalArray.FIRST_DIMENSION, xValue, dataCell);
 
-		XYSeries series = getXYSeries(dataCell.getCarriedValue(), seriesLabel, aggregationType);
+		NumericCharacteristic carriedCharacteristic = (dataCell==null) ? null : dataCell.getCarriedValue();	//#4761. dataCell==null if a plug-in fell down
+		XYSeries series = getXYSeries(carriedCharacteristic, seriesLabel, aggregationType);
 		seriesCollection.add(series);
 	}
 
 	protected String makeSeriesLabel(MultiDimensionalArray lineData, int dimension, Object xValue, MultiDimensionalArray.DataCell dataCell)	{
 		StringBuilder builder = new StringBuilder(lineData.getLabel());
 
-		NumericCharacteristic characteristic = dataCell.getCarriedValue();
-		if (characteristic == null)	{
-			builder.append(" [").append(LanguagesConfiguration.getNetBloxLabel(KEY_NO_DATA)).append("]");
+		NumericCharacteristic characteristic = null;
+		if (dataCell != null)	{
+			characteristic = dataCell.getCarriedValue();
+			if (characteristic == null)	{	//#4689. Tell about the absence of data.
+				builder.append(" [").append(LanguagesConfiguration.getNetBloxLabel(KEY_NO_DATA)).append("]");
+			}
+		}
+		else	{	//#4761. Bring information about failures of plug-ins to plots.
+			builder.append(" [").append(LanguagesConfiguration.getNetBloxLabel(KEY_PLUGIN_FELL_DOWN)).append("]");
 		}
 
 		if (isXAxisSpecified())	{
@@ -154,7 +164,7 @@ public abstract class JFreeChartPlotter extends Plotter {
 			builder.append(", ").append(dimensionLabel).append("=").append(xValue);
 		}
 
-		if (showGraphsData)	{
+		if (currentPlotData.toShowGraphsData()  &&  dataCell != null)	{
 			builder.append("; ").append(LanguagesConfiguration.getNetBloxLabel(KEY_GRAPH)).append(": ").
 				append(dataCell.getGraphParameters().getShortLabel());
 		}
@@ -171,19 +181,21 @@ public abstract class JFreeChartPlotter extends Plotter {
 		return builder.toString();
 	}
 
-	protected abstract XYSeries getXYSeries(NumericCharacteristic measureValues, String seriesLabel, StatisticsAggregation aggregationType);
+	protected abstract XYSeries getXYSeries(NumericCharacteristic measureValues, String seriesLabel, StatisticsAggregation aggregationType) throws ResultsPresentationException;
 
-	protected XYSeries getDistributionXYSeries(NumericCharacteristic measureValues, String seriesLabel)	{
-		XYSeries series = new XYSeries(seriesLabel);
+	protected XYSeries getDistributionXYSeries(NumericCharacteristic measureValues, String seriesLabel) throws ResultsPresentationException	{
+		JFreeXYSeries series = new JFreeXYSeries(seriesLabel, currentPlotData.getAxesScale());
 
 		if (measureValues != null)	{
 			NumericCharacteristic.Distribution distribution = measureValues.getDistribution();
+			Float scalingCoefficient = measureValues.getDistributionScalingCoefficient();
 			for (Number value : distribution.getValues())	{
-				Integer numberOfOccurences = distribution.getNumberOfOccurences(value);
+				Number numberOfOccurences = (scalingCoefficient==null) ? distribution.getNumberOfOccurences(value) :
+					scalingCoefficient * distribution.getNumberOfOccurences(value);
 				if (value.equals(0))	{
 					value = value.doubleValue() + Double.MIN_VALUE;
 				}
-				series.add(value, numberOfOccurences);
+				series.addCorrect(value, numberOfOccurences);
 			}
 		}
 
@@ -308,6 +320,10 @@ public abstract class JFreeChartPlotter extends Plotter {
 		case XY_LOG10:
 			ValueAxis yAxis = new JFreeLogarithmic10Axis(Y_AXIS_LABEL);
 			yAxis.setMinorTickMarksVisible(true);
+			if (plotData.getPlotStyle() == PlotStyle.BAR)	{
+				XYBarRenderer renderer = (XYBarRenderer) plot.getRenderer();
+				renderer.setBase(1.0);
+			}
 			plot.setRangeAxis(yAxis);
 			break;
 		}
@@ -335,7 +351,7 @@ public abstract class JFreeChartPlotter extends Plotter {
 
 
 	protected void addSubtitles(JFreeChart chart, SingleTypeBigChart plotData)	{
-		if (!showGraphsData)	{
+		if (!currentPlotData.toShowGraphsData())	{
 			return;
 		}
 
@@ -358,5 +374,38 @@ public abstract class JFreeChartPlotter extends Plotter {
 				e.printStackTrace();
 			}
 		}
+	}
+
+	protected String addCoefficientToLabel(String label, SingleTypeBigChart plotData)	{
+		Float coefficient = plotData.getValuesScalingCoefficient();
+		if (coefficient == null  ||  coefficient == 1)	{
+			return label;
+		}
+
+		StringBuilder builder = new StringBuilder(label).append(" ⋅ ");
+
+		Double log10ofCoefficient = Math.log10(coefficient);
+		Long log10rounded = Math.round(log10ofCoefficient);
+		if (MathUtils.approximatelyEquals(log10ofCoefficient, -1.0))	{
+			builder.append("10");
+		}
+		else if (MathUtils.approximatelyEquals(log10ofCoefficient, log10rounded.doubleValue()))	{
+			if (log10rounded > 0)	{
+				builder.append("10^(-").append(log10rounded).append(")");
+			}
+			else	{
+				builder.append("10^").append(-log10rounded);
+			}
+		}
+		else	{
+			Double reverseCoefficient = (double) (1f/coefficient);
+			if (MathUtils.approximatelyEquals(reverseCoefficient, Math.rint(reverseCoefficient)))	{
+				builder.append(reverseCoefficient.longValue());
+			}
+			else	{
+				builder.append(reverseCoefficient);
+			}
+		}
+		return builder.toString();
 	}
 }
