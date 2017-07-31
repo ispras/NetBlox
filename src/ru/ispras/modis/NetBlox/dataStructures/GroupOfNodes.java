@@ -12,9 +12,11 @@ import ru.ispras.modis.NetBlox.dataStructures.IGraph.INode;
  * @author ilya
  */
 public class GroupOfNodes implements IGroupOfNodes {
+	private Integer groupID;
 	private Collection<IGraph.INode> nodes;
 
-	public GroupOfNodes()	{
+	public GroupOfNodes(Integer groupID)	{
+		this.groupID = groupID;
 		nodes = new LinkedList<IGraph.INode>();
 	}
 
@@ -27,6 +29,10 @@ public class GroupOfNodes implements IGroupOfNodes {
 		return nodes.contains(node);
 	}
 
+
+	public Integer getID()	{
+		return groupID;
+	}
 
 	@Override
 	public int size()	{
@@ -41,7 +47,7 @@ public class GroupOfNodes implements IGroupOfNodes {
 
 	@Override
 	public String toString()	{
-		StringBuilder clusterStringBuilder = new StringBuilder("group_[");
+		StringBuilder clusterStringBuilder = new StringBuilder("group_").append((groupID==null)?"":groupID).append("[");
 		boolean firstNode = true;
 		for (IGraph.INode node : nodes)	{
 			if (firstNode)	{	firstNode = false;	}
@@ -55,6 +61,24 @@ public class GroupOfNodes implements IGroupOfNodes {
 
 	@Override
 	public int hashCode()	{
+		if (groupID!=null)	{
+			return groupID;
+		}
 		return nodes.hashCode();
+	}
+
+	@Override
+	public boolean equals(Object obj)	{
+		if (!(obj instanceof GroupOfNodes))	{
+			return super.equals(obj);
+		}
+
+		GroupOfNodes other = (GroupOfNodes)obj;
+		if (groupID!=null && other.groupID!=null)	{
+			return groupID.equals(other.groupID);
+		}
+		else	{
+			return nodes.equals(other.nodes);
+		}
 	}
 }

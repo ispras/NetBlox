@@ -154,7 +154,7 @@ public class ArrangedData {
 		}
 		else if (analysedDataIdentifier.type() == AnalysedDataIdentifier.Type.EXTERNAL)	{
 			if (!doParameterValuesFit(variationIdValuePair, analysedDataIdentifier.getExternalFilepathAsInScenario(),
-					fixedParametersGraph.getProvidedForCharacterizationExternalCoversFilenames().getRangeId()))	{
+					fixedParametersGraph.getProvidedForCharacterizationExternalFilenames().getRangeId()))	{
 				return false;
 			}
 		}
@@ -172,8 +172,21 @@ public class ArrangedData {
 
 			String requiredValue = variationIdValuePair.getValue();
 
-			if (!requiredValue.equals(fixedValue.toString()))	{
-				result = false;
+			if (fixedValue instanceof Integer)	{
+				String[] requiredValueParts = requiredValue.split("[\\.,]");
+				if (requiredValueParts.length>2  ||  requiredValueParts.length==2 && !requiredValueParts[1].equals("0"))	{
+					return false;
+				}
+				result = fixedValue.equals(Integer.parseInt(requiredValueParts[0]));
+			}
+			else if (fixedValue instanceof Float)	{ 
+				result = fixedValue.equals(Float.parseFloat(requiredValue));
+			}
+			else if (fixedValue instanceof Double)	{ 
+				result = fixedValue.equals(Double.parseDouble(requiredValue));
+			}
+			else	{
+				result = requiredValue.equals(fixedValue.toString());
 			}
 		}
 

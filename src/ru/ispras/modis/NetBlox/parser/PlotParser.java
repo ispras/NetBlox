@@ -76,7 +76,6 @@ public class PlotParser extends DataArrangementParser {
 
 	private static final String ATTRIBUTE_AGGREGATION = "aggregation";
 	private static final String ATTRIBUTE_AGGREGATION_CUMULATIVE_AVERAGE = "cumulativeAverage";
-	private static final String ATTRIBUTE_AGGREGATION_BIG_INTERVALS = "bigIntervals";	//XXX Unimplemented really?
 	private static final String ATTRIBUTE_AGGREGATION_NONE = "none";
 
 	private static final String ATTRIBUTE_SHOW_GRAPHS_DATA = "showGraphsData";
@@ -137,9 +136,6 @@ public class PlotParser extends DataArrangementParser {
 		if (plotStatisticAggregationTypeString != null)	{
 			if (plotStatisticAggregationTypeString.equalsIgnoreCase(ATTRIBUTE_AGGREGATION_CUMULATIVE_AVERAGE))	{
 				currentArrangementDescription.setAggregationType(StatisticsAggregation.CUMULATIVE_AVERAGE);
-			}
-			else if (plotStatisticAggregationTypeString.equalsIgnoreCase(ATTRIBUTE_AGGREGATION_BIG_INTERVALS))	{
-				currentArrangementDescription.setAggregationType(StatisticsAggregation.BIG_INTERVALS);
 			}
 			else if (plotStatisticAggregationTypeString.equalsIgnoreCase(ATTRIBUTE_AGGREGATION_NONE))	{
 				currentArrangementDescription.setAggregationType(StatisticsAggregation.NONE);

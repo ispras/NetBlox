@@ -39,8 +39,8 @@ public abstract class GraphsDescriptionParser extends DefaultDescriptionElementP
 	private static final String TAG_GENERATION_NUMBERS = "generationNumbers";
 
 	private final XMLStringValueProcessor referenceCoverFileNameProcessor;
-	private final ExternalSetsOfGroupsOfNodesParser externalForMiningProcessor;
-	private final ExternalSetsOfGroupsOfNodesParser externalCoversProcessor;
+	private final ExternalDataForGraphParser externalForMiningProcessor;
+	private final ExternalDataForGraphParser externalDataFilesProcessor;
 	private final XMLStringValueProcessor attributesFileNameProcessor;
 
 	protected DescriptionGraphsOneType graphsDescription;
@@ -50,8 +50,8 @@ public abstract class GraphsDescriptionParser extends DefaultDescriptionElementP
 		super();
 
 		addTaggedParser(TAG_REFERENCE, referenceCoverFileNameProcessor = new XMLStringValueProcessor());
-		addTaggedParser(TAG_EXTERNAL_FOR_MINING, externalForMiningProcessor = new ExternalSetsOfGroupsOfNodesParser());
-		addTaggedParser(TAG_EXTERNAL_COVERS, externalCoversProcessor = new ExternalSetsOfGroupsOfNodesParser());
+		addTaggedParser(TAG_EXTERNAL_FOR_MINING, externalForMiningProcessor = new ExternalDataForGraphParser());
+		addTaggedParser(TAG_EXTERNAL_COVERS, externalDataFilesProcessor = new ExternalDataForGraphParser());
 		addTaggedParser(TAG_ATTRIBUTES, attributesFileNameProcessor = new XMLStringValueProcessor());
 		addTaggedParser(TAG_GENERATION_NUMBERS, new LaunchesProcessor());
 	}
@@ -84,13 +84,13 @@ public abstract class GraphsDescriptionParser extends DefaultDescriptionElementP
 			graphsDescription.setAttributesFileName(attributesFileName);
 		}
 
-		RangeOfValues<String> setsOfGroupsFilenames = externalForMiningProcessor.getSetsOfGroupsFilenames();
-		if (setsOfGroupsFilenames != null)	{
-			graphsDescription.setExternalForMiningFiles(setsOfGroupsFilenames);
+		RangeOfValues<String> externalDataFilenames = externalForMiningProcessor.getExternalFilenames();
+		if (externalDataFilenames != null  &&  !externalDataFilenames.isEmpty())	{
+			graphsDescription.setExternalForMiningFiles(externalDataFilenames, externalForMiningProcessor.getExternalDataType());
 		}
-		setsOfGroupsFilenames = externalCoversProcessor.getSetsOfGroupsFilenames();
-		if (setsOfGroupsFilenames != null)	{
-			graphsDescription.setExternalCoversFiles(setsOfGroupsFilenames);
+		externalDataFilenames = externalDataFilesProcessor.getExternalFilenames();
+		if (externalDataFilenames != null  &&  !externalDataFilenames.isEmpty())	{
+			graphsDescription.setExternalForCharacterizationFiles(externalDataFilenames, externalDataFilesProcessor.getExternalDataType());
 		}
 	}
 

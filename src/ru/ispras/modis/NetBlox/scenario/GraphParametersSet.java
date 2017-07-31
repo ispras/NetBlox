@@ -2,6 +2,8 @@ package ru.ispras.modis.NetBlox.scenario;
 
 import java.util.List;
 
+import ru.ispras.modis.NetBlox.utils.MiningJobBase;
+import ru.ispras.modis.NetBlox.utils.MiningJobBase.JobBase;
 import ru.ispras.modis.NetBlox.utils.Pair;
 
 
@@ -25,26 +27,22 @@ public abstract class GraphParametersSet extends ParametersSet {
 	private boolean directed = false;
 	private boolean weighted = false;
 
-	private RangeOfValues<String> externalSetsOfGroupsOfNodesForMiningFilenames = null;
-	private RangeOfValues<String> externalSetsOfGroupsOfNodesForCharacterizationFilenames = null;
+	private MiningJobBase.JobBase externalDataForMiningType = JobBase.NODES_GROUPS_SET;
+	private MiningJobBase.JobBase externalDataForCharacterizationType = JobBase.NODES_GROUPS_SET;
+	private RangeOfValues<String> externalDataForMiningFilenames = null;
+	private RangeOfValues<String> externallyProvidedForCharacterizationFilenames = null;
 	private String attributesFileName = null;
 
 	private ValueFromRange<Integer> generationNumber = null;	//For the case when we explore several generations of the same graph type with exactly the same parameters.
 
 
-	public GraphParametersSet(String graphTypeName, String graphDescriptionID, boolean directed, boolean weighted, ValueFromRange<Integer> numberOfNodes,
-			String referenceCommunitiesRelativeFileName,
-			RangeOfValues<String> externalSetsForMiningFilenames, RangeOfValues<String> externalCoversFilenames,
-			String attributesFileName, ValueFromRange<Integer> generation)	{
+	public GraphParametersSet(String graphTypeName, String graphDescriptionID, boolean directed, boolean weighted,
+			ValueFromRange<Integer> numberOfNodes, ValueFromRange<Integer> generation)	{
 		this.graphTypeName = graphTypeName;
 		this.graphDescriptionId = graphDescriptionID;
 		this.directed = directed;
 		this.weighted = weighted;
 		this.numberOfNodes = numberOfNodes;
-		this.referenceCommunitiesRelativeFileName = referenceCommunitiesRelativeFileName;
-		this.externalSetsOfGroupsOfNodesForMiningFilenames = externalSetsForMiningFilenames;
-		this.externalSetsOfGroupsOfNodesForCharacterizationFilenames = externalCoversFilenames;
-		this.attributesFileName = attributesFileName;
 		this.generationNumber = generation;
 
 		numberOfGraphParametersSets++;
@@ -53,6 +51,24 @@ public abstract class GraphParametersSet extends ParametersSet {
 
 	public static void resetNumberOfGraphParametersSets()	{
 		numberOfGraphParametersSets = 0;
+	}
+
+	public void setFilenames(String referenceRelativeFilename, String attributesFileName,
+			RangeOfValues<String> externalDataForMiningFilenames, MiningJobBase.JobBase externalDataForMiningType,
+			RangeOfValues<String> externallyProvidedForCharacterizationFilenames, MiningJobBase.JobBase externalDataForCharacterizationType)	{
+		if (referenceRelativeFilename != null)	{
+			this.referenceCommunitiesRelativeFileName = referenceRelativeFilename;
+		}
+		this.attributesFileName = attributesFileName;
+
+		if (externalDataForMiningFilenames != null)	{
+			this.externalDataForMiningType = externalDataForMiningType;
+			this.externalDataForMiningFilenames = externalDataForMiningFilenames;
+		}
+		if (externallyProvidedForCharacterizationFilenames != null)	{
+			this.externalDataForCharacterizationType = externalDataForCharacterizationType;
+			this.externallyProvidedForCharacterizationFilenames = externallyProvidedForCharacterizationFilenames;
+		}
 	}
 
 
@@ -82,11 +98,17 @@ public abstract class GraphParametersSet extends ParametersSet {
 		return referenceCommunitiesRelativeFileName;
 	}
 
-	public RangeOfValues<String> getProvidedForMiningExternalSetsOfGroupsOfNodesFilenames()	{
-		return externalSetsOfGroupsOfNodesForMiningFilenames;
+	public RangeOfValues<String> getProvidedForMiningExternalDataFilenames()	{
+		return externalDataForMiningFilenames;
 	}
-	public RangeOfValues<String> getProvidedForCharacterizationExternalCoversFilenames()	{
-		return externalSetsOfGroupsOfNodesForCharacterizationFilenames;
+	public RangeOfValues<String> getProvidedForCharacterizationExternalFilenames()	{
+		return externallyProvidedForCharacterizationFilenames;
+	}
+	public MiningJobBase.JobBase getTypeOfProvidedForMiningExternalData()	{
+		return externalDataForMiningType;
+	}
+	public MiningJobBase.JobBase getTypeOfProvidedForCharacterizationExternalData()	{
+		return externalDataForCharacterizationType;
 	}
 
 

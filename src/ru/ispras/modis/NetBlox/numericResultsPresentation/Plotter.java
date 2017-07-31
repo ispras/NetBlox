@@ -104,4 +104,8 @@ public abstract class Plotter {
 	protected boolean isXAxisSpecified()	{
 		return isXAxisSpecified;
 	}
+
+	protected void setXAxisSpecified(boolean b)	{
+		isXAxisSpecified = b;
+	}
 }

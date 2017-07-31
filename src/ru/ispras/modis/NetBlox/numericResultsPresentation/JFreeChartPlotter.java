@@ -52,7 +52,7 @@ public abstract class JFreeChartPlotter extends Plotter {
 	//private static final float PLOT_FOREGROUND_ALPHA = 0.5f;//0.1f
 
 	protected static final String KEY_NUMBER_OF_OCCURENCES = "numberOfOcurences";
-	private static final String KEY_GRAPH = "graph";
+	protected static final String KEY_GRAPH = "graph";
 	private static final String KEY_AVERAGE_DEGREE = "averageDegree";
 	private static final String KEY_DISTRIBUTION = "distribution";
 	private static final String KEY_AVERAGE = "average";
@@ -145,19 +145,36 @@ public abstract class JFreeChartPlotter extends Plotter {
 		seriesCollection.add(series);
 	}
 
+	protected abstract XYSeries getXYSeries(NumericCharacteristic measureValues, String seriesLabel, StatisticsAggregation aggregationType) throws ResultsPresentationException;
+
+	protected XYSeries getDistributionXYSeries(NumericCharacteristic measureValues, String seriesLabel) throws ResultsPresentationException	{
+		JFreeXYSeries series = new JFreeXYSeries(seriesLabel, currentPlotData.getAxesScale());
+
+		if (measureValues != null)	{
+			NumericCharacteristic.Distribution distribution = measureValues.getDistribution();
+			Float scalingCoefficient = measureValues.getDistributionScalingCoefficient();
+			for (Number value : distribution.getValues())	{
+				if (value.equals(Double.NaN) || value.equals(Double.NEGATIVE_INFINITY) || value.equals(Double.POSITIVE_INFINITY))	{
+					continue;
+				}
+
+				Number numberOfOccurences = (scalingCoefficient==null) ? distribution.getNumberOfOccurences(value) :
+					scalingCoefficient * distribution.getNumberOfOccurences(value);
+				if (value.equals(0))	{
+					value = value.doubleValue() + Double.MIN_VALUE;
+				}
+				series.addCorrect(value, numberOfOccurences);
+			}
+		}
+
+		return series;
+	}
+
+
 	protected String makeSeriesLabel(MultiDimensionalArray lineData, int dimension, Object xValue, MultiDimensionalArray.DataCell dataCell)	{
 		StringBuilder builder = new StringBuilder(lineData.getLabel());
 
-		NumericCharacteristic characteristic = null;
-		if (dataCell != null)	{
-			characteristic = dataCell.getCarriedValue();
-			if (characteristic == null)	{	//#4689. Tell about the absence of data.
-				builder.append(" [").append(LanguagesConfiguration.getNetBloxLabel(KEY_NO_DATA)).append("]");
-			}
-		}
-		else	{	//#4761. Bring information about failures of plug-ins to plots.
-			builder.append(" [").append(LanguagesConfiguration.getNetBloxLabel(KEY_PLUGIN_FELL_DOWN)).append("]");
-		}
+		NumericCharacteristic characteristic = checkAndAppendDataAboutFailure(builder, dataCell);
 
 		if (isXAxisSpecified())	{
 			String dimensionLabel = lineData.getDimensionLabel(dimension);
@@ -169,7 +186,8 @@ public abstract class JFreeChartPlotter extends Plotter {
 				append(dataCell.getGraphParameters().getShortLabel());
 		}
 
-		if (lineData.getContainedValuesType() == NumericCharacteristic.Type.DISTRIBUTION  &&  characteristic != null)	{
+		NumericCharacteristic.Type valuesType = lineData.getContainedValuesType();
+		if (valuesType == NumericCharacteristic.Type.DISTRIBUTION  &&  characteristic != null)	{
 			builder.append("; ").append(LanguagesConfiguration.getNetBloxLabel(KEY_DISTRIBUTION)).
 				append(": ").append(LanguagesConfiguration.getNetBloxLabel(KEY_AVERAGE)).append("=").append(characteristic.getAverage()).
 				append(",\n").append(LanguagesConfiguration.getNetBloxLabel(KEY_STANDARD_DEVIATION)).append("=").append(characteristic.getStandardDeviation()).
@@ -177,29 +195,46 @@ public abstract class JFreeChartPlotter extends Plotter {
 				append(", ").append(LanguagesConfiguration.getNetBloxLabel(KEY_SAMPLE_SIZE)).append("=").append(characteristic.getSampleSize());
 		}
 
+		if (characteristic!=null   &&   (valuesType==NumericCharacteristic.Type.LIST_OF_VALUES  ||
+				valuesType==NumericCharacteristic.Type.DISTRIBUTION && currentPlotData.getPlotStyle()!=PlotStyle.BAR))	{	//#4845
+			NumericCharacteristic.Distribution distribution = characteristic.getDistribution();
+
+			Integer numberOfOccurences = distribution.getNumberOfOccurences(Double.NaN);
+			if (numberOfOccurences != 0)	{
+				builder.append(", #(").append(Double.NaN).append(")=").append(numberOfOccurences);
+			}
+
+			numberOfOccurences = distribution.getNumberOfOccurences(Double.NEGATIVE_INFINITY);
+			if (numberOfOccurences != 0)	{
+				builder.append(", #(").append(Double.NEGATIVE_INFINITY).append(")=").append(numberOfOccurences);
+			}
+
+			numberOfOccurences = distribution.getNumberOfOccurences(Double.POSITIVE_INFINITY);
+			if (numberOfOccurences != 0)	{
+				builder.append(", #(").append(Double.POSITIVE_INFINITY).append(")=").append(numberOfOccurences);
+			}
+		}
+
 		builder.append(". | ");
 		return builder.toString();
 	}
 
-	protected abstract XYSeries getXYSeries(NumericCharacteristic measureValues, String seriesLabel, StatisticsAggregation aggregationType) throws ResultsPresentationException;
-
-	protected XYSeries getDistributionXYSeries(NumericCharacteristic measureValues, String seriesLabel) throws ResultsPresentationException	{
-		JFreeXYSeries series = new JFreeXYSeries(seriesLabel, currentPlotData.getAxesScale());
-
-		if (measureValues != null)	{
-			NumericCharacteristic.Distribution distribution = measureValues.getDistribution();
-			Float scalingCoefficient = measureValues.getDistributionScalingCoefficient();
-			for (Number value : distribution.getValues())	{
-				Number numberOfOccurences = (scalingCoefficient==null) ? distribution.getNumberOfOccurences(value) :
-					scalingCoefficient * distribution.getNumberOfOccurences(value);
-				if (value.equals(0))	{
-					value = value.doubleValue() + Double.MIN_VALUE;
-				}
-				series.addCorrect(value, numberOfOccurences);
+	protected NumericCharacteristic checkAndAppendDataAboutFailure(StringBuilder labelBuilder, MultiDimensionalArray.DataCell dataCell)	{
+		NumericCharacteristic characteristic = null;
+		if (dataCell != null)	{
+			characteristic = dataCell.getCarriedValue();
+			if (characteristic == null)	{	//#4689. Tell about the absence of data.
+				labelBuilder.append(" [").append(LanguagesConfiguration.getNetBloxLabel(KEY_NO_DATA)).append("]");
+			}
+			else if (characteristic.getType() == NumericCharacteristic.Type.SINGLE_VALUE  &&  Float.isNaN(characteristic.getValue()))	{
+				labelBuilder.append(" [").append(Float.NaN).append("]");
 			}
 		}
+		else	{	//#4761. Bring information about failures of plug-ins to plots.
+			labelBuilder.append(" [").append(LanguagesConfiguration.getNetBloxLabel(KEY_PLUGIN_FELL_DOWN)).append("]");
+		}
 
-		return series;
+		return characteristic;
 	}
 
 
@@ -308,7 +343,6 @@ public abstract class JFreeChartPlotter extends Plotter {
 	private void changeRangeAxis(XYPlot plot, SingleTypeBigChart plotData)	{
 		if (!(this instanceof SingleValuesPlotter))	{
 			switch (plotData.getStatisticsAggregationType())	{
-			case BIG_INTERVALS:	//nothing special for now
 			case DISTRIBUTION:
 				ValueAxis yAxis = new JFreeIntegerAxis(Y_AXIS_LABEL);
 				plot.setRangeAxis(yAxis);

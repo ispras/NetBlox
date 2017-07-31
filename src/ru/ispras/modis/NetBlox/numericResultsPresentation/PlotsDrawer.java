@@ -23,13 +23,13 @@ public class PlotsDrawer {
 				if (individualValueType == null)	{
 					String errorMessage = "WARNING:\tThere're no computation results for any of lines of "+plotData.getChartName();
 					System.out.println(errorMessage);
-					singleValuesPlotter.drawPlot(plotData);
+					singleValuesPlotter.drawPlot(plotData, individualValueType);
 					continue;
 				}
 
 				switch (individualValueType)	{
 				case SINGLE_VALUE:
-					singleValuesPlotter.drawPlot(plotData);
+					singleValuesPlotter.drawPlot(plotData, individualValueType);
 					break;
 				case LIST_OF_VALUES:
 					listsOfValuesPlotter.plotValuesDistributedOverCommunities(plotData);
@@ -38,7 +38,7 @@ public class PlotsDrawer {
 					distributionPlotter.plotValuesDistributedOverCommunities(plotData);
 					break;
 				case FUNCTION:
-					singleValuesPlotter.drawPlot(plotData);
+					singleValuesPlotter.drawPlot(plotData, individualValueType);
 					break;
 				}
 			} catch (ResultsPresentationException rpe)	{

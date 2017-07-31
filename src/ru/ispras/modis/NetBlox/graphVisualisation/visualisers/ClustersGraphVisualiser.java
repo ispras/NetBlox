@@ -10,16 +10,19 @@ import org.gephi.preview.api.PreviewController;
 import org.gephi.preview.api.PreviewModel;
 import org.gephi.preview.api.PreviewProperty;
 import org.gephi.preview.types.EdgeColor;
-import org.gephi.project.api.Workspace;
 import org.openide.util.Lookup;
 
+import ru.ispras.modis.NetBlox.dataManagement.GraphOnDriveHandler;
 import ru.ispras.modis.NetBlox.dataStructures.IGraph;
 import ru.ispras.modis.NetBlox.dataStructures.IGroupOfNodes;
+import ru.ispras.modis.NetBlox.dataStructures.IPackOfGraphStructures;
 import ru.ispras.modis.NetBlox.dataStructures.ISetOfGroupsOfNodes;
 import ru.ispras.modis.NetBlox.dataStructures.internalMechs.ExtendedMiningParameters;
 import ru.ispras.modis.NetBlox.exceptions.VisualisationException;
 import ru.ispras.modis.NetBlox.scenario.GraphParametersSet;
 import ru.ispras.modis.NetBlox.scenario.GraphVisualisationDescription;
+import ru.ispras.modis.NetBlox.scenario.GraphVisualisationDescription.FinalPresentationType;
+import ru.ispras.modis.NetBlox.utils.MiningJobBase;
 
 /**
  * <p>This visualiser presents known graph clusters as nodes in a new metagraph, that are
@@ -32,15 +35,17 @@ import ru.ispras.modis.NetBlox.scenario.GraphVisualisationDescription;
  */
 public class ClustersGraphVisualiser extends GephiGraphVisualiser {
 
-	public ClustersGraphVisualiser(GraphVisualisationDescription visualisationDescription) {
-		super(visualisationDescription);
+	public ClustersGraphVisualiser(GraphVisualisationDescription visualisationDescription, MiningJobBase.JobBase minedDataType) {
+		super(visualisationDescription, minedDataType);
 	}
 
+	@Override
 	protected void setLayoutBuilder()	{
 		//layoutBuilder = new ForceAtlas();
 		//layoutBuilder = new ForceAtlas2Builder();
 		layoutBuilder = new CircleLayoutBuilder();
 	}
+	@Override
 	protected Layout makeLayout()	{
 		//return new ForceAtlasLayout(layoutBuilder);
 		//return new ForceAtlas2((ForceAtlas2Builder) layoutBuilder);
@@ -49,22 +54,44 @@ public class ClustersGraphVisualiser extends GephiGraphVisualiser {
 
 
 	@Override
-	public void visualise(IGraph graph, ISetOfGroupsOfNodes setOfGroupsOfNodes, GraphParametersSet initialGraphParameters,
-			ExtendedMiningParameters miningParameters) throws VisualisationException {
-		Workspace gephiWorkspace = gephiProjectController.getCurrentWorkspace();
-		gephiProjectController.cleanWorkspace(gephiWorkspace);
+	public void visualise(IGraph graph, IPackOfGraphStructures<?> packOfStructures, GraphParametersSet initialGraphParameters,
+			ExtendedMiningParameters miningParameters, Integer timeSlice) throws VisualisationException {
+		if (packOfStructures == null  ||  visualisationDescription.getSubstructuresFinalPresentationType() == FinalPresentationType.NO)	{
+			System.out.println("ERROR. The requested combination of parameters is incompatible with the chosen method. Nothing will be drawn.");
+			return;
+		}
+		if (minedDataType != MiningJobBase.JobBase.NODES_GROUPS_SET)	{
+			System.out.println("WARNING: Visualising graph substructure is not supproted in "+visualisationDescription.getMethod()+" visualisation mode.");
+			return;
+		}
 
-		GraphModel graphModel = produceGraphModel(graph, setOfGroupsOfNodes);
+		gephiProjectController.newProject();	//gephiProjectController.cleanWorkspace(gephiWorkspace) doesn't work.
+
+		GraphModel graphModel = produceGraphModel((ISetOfGroupsOfNodes) packOfStructures);
 
 		buildLayout(graphModel);
 
 		changeColorOfEdges();
 
-		export(initialGraphParameters, miningParameters);
+		export(initialGraphParameters, miningParameters, timeSlice);
+
+		gephiProjectController.closeCurrentProject();
+	}
+
+	@Override
+	public void visualiseGroupsOverGraph(IGraph graph, GraphOnDriveHandler initialGraphHandler, ExtendedMiningParameters extendedMiningParameters)
+			throws VisualisationException {
+		callVisualisationForTimeSlices(graph, initialGraphHandler, extendedMiningParameters);
+	}
+
+	@Override
+	public void visualiseSubgraphsOverGraph(IGraph graph, GraphOnDriveHandler initialGraphHandler, ExtendedMiningParameters miningParameters)
+			throws VisualisationException	{
+		System.out.println("WARNING: Visualising graph substructure is not supported in "+visualisationDescription.getMethod()+" visualisation mode.");
 	}
 
 
-	private GraphModel produceGraphModel(IGraph graph, ISetOfGroupsOfNodes setOfGroupsOfNodes)	{
+	private GraphModel produceGraphModel(ISetOfGroupsOfNodes setOfGroupsOfNodes)	{
 		GraphModel graphModel = Lookup.getDefault().lookup(GraphController.class).getModel();
 
 		org.gephi.graph.api.Graph gephiGraph = graphModel.getUndirectedGraph();
@@ -81,7 +108,7 @@ public class ClustersGraphVisualiser extends GephiGraphVisualiser {
 				float edgeWeight = countCommonNodes(community1, community2);
 				if (edgeWeight >= visualisationDescription.getMinimalNumberOfNodesInOverlapToVisualiseIt())	{
 					obtainGephiEdge(gephiNode1, gephiNode2, (edgeWeight/visualisationDescription.getMinimalNumberOfNodesInOverlapToVisualiseIt()),
-							graph.isDirected(), gephiGraph, graphModel);
+							false, gephiGraph, graphModel);
 				}
 			}
 		}

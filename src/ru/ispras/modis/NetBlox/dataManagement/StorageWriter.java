@@ -50,8 +50,7 @@ public class StorageWriter extends StorageHandler {
 
 	public static void save(List<String> dataLines, String targetPathString) throws IOException	{
 		if (dataLines == null  ||  dataLines.isEmpty())	{
-			return;
-			//TODO Throw an exception?
+			return;	//XXX Throw an exception?
 		}
 
 		Path target = Paths.get(targetPathString);
@@ -139,21 +138,21 @@ public class StorageWriter extends StorageHandler {
 
 
 	public static void saveMined(String dataFilePathString, GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters,
-			ContentType contentType)	throws IOException	{
+			ContentType contentType, Integer timeSlice)	throws IOException	{
 		//TODO What about SupplementaryData?
-		String pathToStorage = getPathStringToStoredMinedData(graphHandler, miningParameters, contentType);
+		String pathToStorage = getPathStringToStoredMinedData(graphHandler, miningParameters, contentType, timeSlice);
 		move(dataFilePathString, pathToStorage);
 	}
 
 	public static void saveMined(List<String> dataLines, GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters,
-			ContentType contentType)	throws IOException	{
+			ContentType contentType, Integer timeSlice)	throws IOException	{
 		//TODO What about SupplementaryData?
-		String pathToStorage = getPathStringToStoredMinedData(graphHandler, miningParameters, contentType);
+		String pathToStorage = getPathStringToStoredMinedData(graphHandler, miningParameters, contentType, timeSlice);
 		save(dataLines, pathToStorage);
 	}
 
 	public static void saveMined(InputStream dataStream, GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters,
-			ContentType contentType)	throws IOException	{
+			ContentType contentType, Integer timeSlice)	throws IOException	{
 		//TODO What about SupplementaryData?
 
 		InputStreamReader dataStreamReader = new InputStreamReader(dataStream);
@@ -165,23 +164,24 @@ public class StorageWriter extends StorageHandler {
 			dataLines.add(line);
 		}
 
-		saveMined(dataLines, graphHandler, miningParameters, contentType);
+		saveMined(dataLines, graphHandler, miningParameters, contentType, timeSlice);
 	}
 
-	public static void saveMined(IGraph graph, GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters) throws IOException	{
-		String pathToStorage = getPathStringToStoredMinedData(graphHandler, miningParameters, ContentType.GRAPH_EDGES);
+	public static void saveMined(IGraph graph, GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters, Integer timeSlice)
+			throws IOException	{
+		String pathToStorage = getPathStringToStoredMinedData(graphHandler, miningParameters, ContentType.GRAPH_EDGES, timeSlice);
 		saveEdges(graph, pathToStorage);
 	}
 
-	public static void saveMined(ISetOfGroupsOfNodes setOfGroupsOfNodes, GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters)
-			throws IOException	{
-		String pathToStorage = getPathStringToStoredMinedData(graphHandler, miningParameters, ContentType.NODES_GROUPS);
+	public static void saveMined(ISetOfGroupsOfNodes setOfGroupsOfNodes, GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters,
+			Integer timeSlice)	throws IOException	{
+		String pathToStorage = getPathStringToStoredMinedData(graphHandler, miningParameters, ContentType.NODES_GROUPS, timeSlice);
 		save(setOfGroupsOfNodes, pathToStorage);
 	}
 
-	public static void saveMined(NumericCharacteristic characteristic, GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters)
-			throws IOException	{
-		String pathToStorage = getPathStringToStoredMinedData(graphHandler, miningParameters, ContentType.CHARACTERISTIC);
+	public static void saveMined(NumericCharacteristic characteristic, GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters,
+			Integer timeSlice)	throws IOException	{
+		String pathToStorage = getPathStringToStoredMinedData(graphHandler, miningParameters, ContentType.CHARACTERISTIC, timeSlice);
 
 		List<String> linesWithValues = putCharacteristicIntoLines(characteristic);
 
@@ -196,42 +196,42 @@ public class StorageWriter extends StorageHandler {
 	//XXX Extract this set of methods to MiningDriver? Or they (the construction of path in storage) belong completely to storage subsystem?
 	//XXX Divide storage writers for saving, e.g., mining results and characteristic statistics?
 	public static void saveMinedMultipleFiles(Collection<String> dataFilesPathStrings, GraphOnDriveHandler graphHandler,
-			ExtendedMiningParameters miningParameters) throws IOException	{
-		String basicPathToStorage = getPathStringToStoredMinedData(graphHandler, miningParameters, ContentType.GRAPH_EDGES);
+			ExtendedMiningParameters miningParameters, Integer timeSlice) throws IOException	{
+		String basicPathToStorage = getPathStringToStoredMinedData(graphHandler, miningParameters, ContentType.GRAPH_EDGES, timeSlice);
 		int structuresCounter = 0;
 		for (String singlePathString : dataFilesPathStrings)	{
 			structuresCounter++;
-			move(singlePathString, basicPathToStorage+structuresCounter);
+			move(singlePathString, basicPathToStorage+"_"+structuresCounter);
 		}
 	}
 
 	public static void saveMinedMultipleListsOfStrings(Collection<List<String>> setsOfDataLines, GraphOnDriveHandler graphHandler,
-			ExtendedMiningParameters miningParameters) throws IOException	{
-		String basicPathToStorage = getPathStringToStoredMinedData(graphHandler, miningParameters, ContentType.GRAPH_EDGES);
+			ExtendedMiningParameters miningParameters, Integer timeSlice) throws IOException	{
+		String basicPathToStorage = getPathStringToStoredMinedData(graphHandler, miningParameters, ContentType.GRAPH_EDGES, timeSlice);
 		int structuresCounter = 0;
 		for (List<String> dataLines : setsOfDataLines)	{
 			structuresCounter++;
-			save(dataLines, basicPathToStorage+structuresCounter);
+			save(dataLines, basicPathToStorage+"_"+structuresCounter);
 		}
 	}
 
 	public static void saveMinedMultipleStreams(Collection<InputStream> dataStreams, GraphOnDriveHandler graphHandler,
-			ExtendedMiningParameters miningParameters) throws IOException	{
-		String basicPathToStorage = getPathStringToStoredMinedData(graphHandler, miningParameters, ContentType.GRAPH_EDGES);
+			ExtendedMiningParameters miningParameters, Integer timeSlice) throws IOException	{
+		String basicPathToStorage = getPathStringToStoredMinedData(graphHandler, miningParameters, ContentType.GRAPH_EDGES, timeSlice);
 		int structuresCounter = 0;
 		for (InputStream dataStream : dataStreams)	{
 			structuresCounter++;
-			save(dataStream, basicPathToStorage+structuresCounter);
+			save(dataStream, basicPathToStorage+"_"+structuresCounter);
 		}
 	}
 
-	public static void saveMinedMultipleGraphs(Collection<IGraph> graphs,GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters)
-			throws IOException	{
-		String basicPathToStorage = getPathStringToStoredMinedData(graphHandler, miningParameters, ContentType.GRAPH_EDGES);
+	public static void saveMinedMultipleGraphs(Collection<IGraph> graphs,GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters,
+			Integer timeSlice)	throws IOException	{
+		String basicPathToStorage = getPathStringToStoredMinedData(graphHandler, miningParameters, ContentType.GRAPH_EDGES, timeSlice);
 		int structuresCounter = 0;
 		for (IGraph graph : graphs)	{
 			structuresCounter++;
-			saveEdges(graph, basicPathToStorage+structuresCounter);
+			saveEdges(graph, basicPathToStorage+"_"+structuresCounter);
 		}
 	}
 

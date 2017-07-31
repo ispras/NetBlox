@@ -5,6 +5,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import ru.ispras.modis.NetBlox.dataManagement.GraphOnDriveHandler;
+import ru.ispras.modis.NetBlox.dataManagement.StorageCleaner;
 import ru.ispras.modis.NetBlox.dataManagement.StorageHandler;
 import ru.ispras.modis.NetBlox.dataManagement.StorageWriter;
 import ru.ispras.modis.NetBlox.dataStructures.IGraph;
@@ -95,6 +96,7 @@ public class MiningDriver {
 			throw new PluginException("The plug-in for "+algorithmName+" returned _null_ instead of mined data.");
 		}
 
+		StorageCleaner.allowDeleteContent();
 		putMinedDataToStorage(minedResults, graphHandler, extendedMiningParameters);
 
 		long graphMiningTime = timeStop - timeStart;
@@ -186,7 +188,8 @@ public class MiningDriver {
 				saveMultipleGraphStructures(minedResults, graphHandler, extendedMiningParameters);
 				break;
 			case CHARACTERISTIC:
-				StorageWriter.saveMined(minedResults.getCharacteristic(), graphHandler, extendedMiningParameters);
+				StorageCleaner.deleteMined(graphHandler, extendedMiningParameters, StorageHandler.ContentType.CHARACTERISTIC);
+				StorageWriter.saveMined(minedResults.getCharacteristic(), graphHandler, extendedMiningParameters, minedResults.getTimeSlice());
 				break;
 			case MULTIRESULT:
 				List<MinerResults> multipleResults = minedResults.getMultipleResults();
@@ -205,60 +208,70 @@ public class MiningDriver {
 
 	private static void saveMinedNodesGroups(MinerResults minedResults, GraphOnDriveHandler graphHandler,
 			ExtendedMiningParameters extendedMiningParameters)	throws IOException	{
+		StorageCleaner.deleteMined(graphHandler, extendedMiningParameters, StorageHandler.ContentType.NODES_GROUPS);
+
 		switch (minedResults.getProvisionFormat())	{
 		case FILE_PATH_STRING:
 			StorageWriter.saveMined(minedResults.getNodesGroupsFilePathString(), graphHandler, extendedMiningParameters,
-					StorageHandler.ContentType.NODES_GROUPS);
+					StorageHandler.ContentType.NODES_GROUPS, minedResults.getTimeSlice());
 			break;
 		case INTERNAL:
-			StorageWriter.saveMined(minedResults.getNodesGroups(), graphHandler, extendedMiningParameters);
+			StorageWriter.saveMined(minedResults.getNodesGroups(), graphHandler, extendedMiningParameters, minedResults.getTimeSlice());
 			break;
 		case LIST_OF_STRINGS:
 			StorageWriter.saveMined(minedResults.getNodesGroupsStrings(), graphHandler, extendedMiningParameters,
-					StorageHandler.ContentType.NODES_GROUPS);
+					StorageHandler.ContentType.NODES_GROUPS, minedResults.getTimeSlice());
 			break;
 		case STREAM:
 			StorageWriter.saveMined(minedResults.getNodesGroupsStream(), graphHandler, extendedMiningParameters,
-					StorageHandler.ContentType.NODES_GROUPS);
+					StorageHandler.ContentType.NODES_GROUPS, minedResults.getTimeSlice());
 			break;
 		}
 	}
 
 	private static void saveMinedGraphStructure(MinerResults minedResults, GraphOnDriveHandler graphHandler,
 			ExtendedMiningParameters extendedMiningParameters)	throws IOException	{
+		StorageCleaner.deleteMined(graphHandler, extendedMiningParameters, StorageHandler.ContentType.GRAPH_EDGES);
+
 		switch (minedResults.getProvisionFormat())	{
 		case FILE_PATH_STRING:
 			StorageWriter.saveMined(minedResults.getMinedGraphStructureFilePathString(), graphHandler, extendedMiningParameters,
-					StorageHandler.ContentType.GRAPH_EDGES);
+					StorageHandler.ContentType.GRAPH_EDGES, minedResults.getTimeSlice());
 			break;
 		case INTERNAL:
-			StorageWriter.saveMined(minedResults.getMinedGraphStructure(), graphHandler, extendedMiningParameters);
+			StorageWriter.saveMined(minedResults.getMinedGraphStructure(), graphHandler, extendedMiningParameters, minedResults.getTimeSlice());
 			break;
 		case LIST_OF_STRINGS:
 			StorageWriter.saveMined(minedResults.getMinedGraphStrings(), graphHandler, extendedMiningParameters,
-					StorageHandler.ContentType.GRAPH_EDGES);
+					StorageHandler.ContentType.GRAPH_EDGES, minedResults.getTimeSlice());
 			break;
 		case STREAM:
 			StorageWriter.saveMined(minedResults.getMinedGraphStream(), graphHandler, extendedMiningParameters,
-					StorageHandler.ContentType.GRAPH_EDGES);
+					StorageHandler.ContentType.GRAPH_EDGES, minedResults.getTimeSlice());
 			break;
 		}
 	}
 
 	private static void saveMultipleGraphStructures(MinerResults minedResults, GraphOnDriveHandler graphHandler,
 			ExtendedMiningParameters extendedMiningParameters)	throws IOException	{
+		StorageCleaner.deleteMined(graphHandler, extendedMiningParameters, StorageHandler.ContentType.GRAPH_EDGES);
+
 		switch (minedResults.getProvisionFormat())	{
 		case FILE_PATH_STRING:
-			StorageWriter.saveMinedMultipleFiles(minedResults.getMultipleGraphStructuresFilePathStrings(), graphHandler, extendedMiningParameters);
+			StorageWriter.saveMinedMultipleFiles(minedResults.getMultipleGraphStructuresFilePathStrings(), graphHandler, extendedMiningParameters,
+					minedResults.getTimeSlice());
 			break;
 		case INTERNAL:
-			StorageWriter.saveMinedMultipleGraphs(minedResults.getMultipleGraphStructures(), graphHandler, extendedMiningParameters);
+			StorageWriter.saveMinedMultipleGraphs(minedResults.getMultipleGraphStructures(), graphHandler, extendedMiningParameters,
+					minedResults.getTimeSlice());
 			break;
 		case LIST_OF_STRINGS:
-			StorageWriter.saveMinedMultipleListsOfStrings(minedResults.getStringsForMultipleGraphs(), graphHandler, extendedMiningParameters);
+			StorageWriter.saveMinedMultipleListsOfStrings(minedResults.getStringsForMultipleGraphs(), graphHandler, extendedMiningParameters,
+					minedResults.getTimeSlice());
 			break;
 		case STREAM:
-			StorageWriter.saveMinedMultipleStreams(minedResults.getMultipleGraphsStreams(), graphHandler, extendedMiningParameters);
+			StorageWriter.saveMinedMultipleStreams(minedResults.getMultipleGraphsStreams(), graphHandler, extendedMiningParameters,
+					minedResults.getTimeSlice());
 			break;
 		}
 	}

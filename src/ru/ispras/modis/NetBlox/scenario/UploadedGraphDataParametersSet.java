@@ -31,11 +31,8 @@ public abstract class UploadedGraphDataParametersSet extends GraphParametersSet 
 	 * @param generation - this is the number of generation for the case when the graph is generated several times.
 	 */
 	public UploadedGraphDataParametersSet(String graphTypeName, String graphDescriptionID, boolean directed, boolean weighted,
-			String directoryPathname, String graphFileName, String referenceCommunitiesRelativeFileName,
-			RangeOfValues<String> externalSetsForMiningFilenames, RangeOfValues<String> externalSetsForMeasuresFilenames,
-			String attributesFileName, ValueFromRange<Integer> generation) {
-		super(graphTypeName, graphDescriptionID, directed, weighted, null, referenceCommunitiesRelativeFileName,
-				externalSetsForMiningFilenames, externalSetsForMeasuresFilenames, attributesFileName, generation);
+			String directoryPathname, String graphFileName, ValueFromRange<Integer> generation) {
+		super(graphTypeName, graphDescriptionID, directed, weighted, null, generation);
 
 		this.graphDirectoryPathname = directoryPathname;
 		this.graphFileName = graphFileName;

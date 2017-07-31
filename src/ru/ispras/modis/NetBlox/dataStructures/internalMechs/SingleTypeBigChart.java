@@ -64,7 +64,7 @@ public class SingleTypeBigChart implements Iterable<MultiDimensionalArray>	{
 			return measureThatInterestsUs.getFunctionArgumentName();
 		}
 		else	{
-			String dimensionLabel = lesserChartsForFixedParametersSets.get(0).getDimensionLabel(1);
+			String dimensionLabel = lesserChartsForFixedParametersSets.get(0).getDimensionLabel(MultiDimensionalArray.FIRST_DIMENSION);
 			return dimensionLabel;
 		}
 	}

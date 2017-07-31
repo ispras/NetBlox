@@ -76,7 +76,6 @@ public class CharacteristicsDriver {
 		try {
 			StorageWriter.saveStatistic(result, graphHandler, analysedDataIdentifier, characteristicParameters);
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 

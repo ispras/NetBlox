@@ -1,5 +1,6 @@
 package ru.ispras.modis.NetBlox.scenario;
 
+import java.util.Collections;
 import java.util.List;
 
 import ru.ispras.modis.NetBlox.utils.MiningJobBase;
@@ -17,6 +18,9 @@ public abstract class GraphMiningParametersSet extends ParametersSet {
 
 	private List<ParametersSet> listOfPreliminaryCalculationsParametersSets = null;
 	protected ValueFromRange<Integer> launchNumber = null;
+
+	//timeSlices list contains information about intermediate steps in time, iterations, time slices in _one_launch_ of an algorithm.
+	private List<Integer> timeSlices = null;
 
 
 	public GraphMiningParametersSet(MiningJobBase.JobBase jobBase, String algorithmNameInScenario, String algorithmDescriptionID)	{
@@ -88,5 +92,26 @@ public abstract class GraphMiningParametersSet extends ParametersSet {
 
 	public boolean hasVariationBeenFixedConstant(String variationId)	{
 		return false;
+	}
+
+
+	/**
+	 * Set the time slices requested in scenario for one (each) launch of the algorithm.
+	 * @param timeSlices	- a range of intermediate steps in time, iterations, time slices that are requested in scenario for this algorithm.
+	 */
+	public void setTimeSlices(List<Integer> timeSlices)	{
+		Collections.sort(timeSlices);
+		this.timeSlices = timeSlices;
+	}
+
+	/**
+	 * Are there time slices for the algorithm for this set of parameters?
+	 */
+	public boolean considerTimeSlices()	{
+		return timeSlices!=null && !timeSlices.isEmpty();
+	}
+
+	public List<Integer> getTimeSlices()	{
+		return timeSlices;
 	}
 }

@@ -65,9 +65,6 @@ public class DistributionPlotter extends JFreeChartPlotter {
 	
 			String seriesLabel = makeSeriesLabel(lineData, MultiDimensionalArray.FIRST_DIMENSION, xValue, dataCell);
 			switch (aggregationType)	{
-			/*case BIG_INTERVALS:	//XXX Need to make somehow unified intervals for BIG_INTERVALS.
-				putDistributionWithBiggerIntervalsToDataset(dataset, value, seriesLabel);
-				break;*/
 			default:
 				NumericCharacteristic measureValues = (dataCell==null) ? null : dataCell.getCarriedValue();	//#4761. dataCell==null if a plug-in fell down
 				putDistributionToCategoryDataset(dataset, measureValues, seriesLabel);
@@ -103,45 +100,6 @@ public class DistributionPlotter extends JFreeChartPlotter {
 			}
 		}
 	}
-
-	/*private void putDistributionWithBiggerIntervalsToDataset(JFreeCategoryDataset dataset, CharacteristicOrMeasure measureValues, String seriesLabel)	{
-		CharacteristicOrMeasure.Distribution distribution = measureValues.getDistribution();
-
-		int numberOfIntervals = (int) Math.floor(Math.sqrt(distribution.getTotalNumberOfOccurences()));
-
-		Set<Number> values = distribution.getValues();
-		List<Double> doubleValues = new ArrayList<Double>(values.size());
-		for (Number number : values)	{
-			doubleValues.add(number.doubleValue());
-		}
-
-		double minValue = Collections.min(doubleValues);
-		double maxValue = Collections.max(doubleValues)*1.00001;;
-		double intervalLength = (maxValue - minValue) / numberOfIntervals;
-
-		LinkedList<Number> localList = new LinkedList<Number>(values);
-		double intervalMinValue = minValue;
-		for (int i=1 ; i<=numberOfIntervals ; i++)	{
-			int aggregatedNumberOfOccurences = 0;
-
-			double intervalMaxValue = intervalMinValue + intervalLength;
-
-			ListIterator<Number> localValuesIterator = localList.listIterator();
-			while (localValuesIterator.hasNext())	{
-				Number candidate = localValuesIterator.next();
-				if (intervalMinValue <= candidate.doubleValue()  &&  candidate.doubleValue() <= intervalMaxValue)	{
-					aggregatedNumberOfOccurences += distribution.getNumberOfOccurences(candidate);
-
-					localValuesIterator.remove();
-				}
-			}
-
-			String categoryLabel = "["+(int)intervalMinValue+";"+(int)intervalMaxValue+"]";
-			dataset.addValue(aggregatedNumberOfOccurences, seriesLabel, categoryLabel);
-
-			intervalMinValue = intervalMaxValue;
-		}
-	}*/
 
 
 	@Override

@@ -1,15 +1,12 @@
 package ru.ispras.modis.NetBlox;
 
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
 
 import ru.ispras.modis.NetBlox.dataManagement.GraphOnDriveHandler;
+import ru.ispras.modis.NetBlox.dataManagement.StorageCleaner;
 import ru.ispras.modis.NetBlox.dataManagement.StorageScanner;
-import ru.ispras.modis.NetBlox.dataStructures.IGraph;
-import ru.ispras.modis.NetBlox.dataStructures.ISetOfGroupsOfNodes;
 import ru.ispras.modis.NetBlox.dataStructures.NumericCharacteristic;
-import ru.ispras.modis.NetBlox.dataStructures.SetOfGroupsOfNodes;
 import ru.ispras.modis.NetBlox.dataStructures.internalMechs.AnalysedDataIdentifier;
 import ru.ispras.modis.NetBlox.dataStructures.internalMechs.ArrangedData;
 import ru.ispras.modis.NetBlox.dataStructures.internalMechs.ExtendedMiningParameters;
@@ -18,7 +15,6 @@ import ru.ispras.modis.NetBlox.exceptions.GraphGenerationException;
 import ru.ispras.modis.NetBlox.exceptions.GraphMiningException;
 import ru.ispras.modis.NetBlox.exceptions.MeasureComputationException;
 import ru.ispras.modis.NetBlox.exceptions.PluginException;
-import ru.ispras.modis.NetBlox.exceptions.SetOfGroupsException;
 import ru.ispras.modis.NetBlox.exceptions.SourceGraphException;
 import ru.ispras.modis.NetBlox.exceptions.StorageException;
 import ru.ispras.modis.NetBlox.exceptions.VisualisationException;
@@ -30,11 +26,11 @@ import ru.ispras.modis.NetBlox.graphVisualisation.GraphVisualisationManager;
 import ru.ispras.modis.NetBlox.numericResultsPresentation.PlotsDrawer;
 import ru.ispras.modis.NetBlox.scenario.GraphMiningParametersSet;
 import ru.ispras.modis.NetBlox.scenario.GraphParametersSet;
+import ru.ispras.modis.NetBlox.scenario.GraphVisualisationDescription;
 import ru.ispras.modis.NetBlox.scenario.MeasureParametersSet;
 import ru.ispras.modis.NetBlox.scenario.ParametersSet;
 import ru.ispras.modis.NetBlox.scenario.RangeOfValues;
 import ru.ispras.modis.NetBlox.scenario.ScenarioTask;
-import ru.ispras.modis.NetBlox.scenario.ScenarioTask.Goal;
 import ru.ispras.modis.NetBlox.scenario.UploadedGraphDataParametersSet;
 import ru.ispras.modis.NetBlox.scenario.ValueFromRange;
 import ru.ispras.modis.NetBlox.scenario.performanceStats.PerformanceStatisticParameters;
@@ -46,7 +42,6 @@ import ru.ispras.modis.NetBlox.scenario.performanceStats.PerformanceStatisticPar
  */
 public class CentralOperator {
 	private Collection<ScenarioTask> scenario;
-	private boolean haveRunOperationForGraph;
 
 
 	public CentralOperator(Collection<ScenarioTask> scenario)	{
@@ -62,7 +57,12 @@ public class CentralOperator {
 				continue;
 			}
 
-			System.out.println("Starting task number "+executedTaskNumber);
+			StringBuilder startTaskMessageBuilder = new StringBuilder("Starting task number ").append(executedTaskNumber).
+					append(" - ").append(task.getGoal());
+			if (task.recompute() != ScenarioTask.Recompute.NO)	{
+				startTaskMessageBuilder.append(" (recompute ").append(task.recompute()).append(")");
+			}
+			System.out.println(startTaskMessageBuilder.toString());
 			long taskStartTime = System.currentTimeMillis();
 
 			executeTask(task);
@@ -84,16 +84,25 @@ public class CentralOperator {
 				graphsParametersIterator.hasNext() ; )	{
 			GraphParametersSet fixedGraphParameters = (GraphParametersSet) graphsParametersIterator.next();
 			System.out.println("\tGraph: "+fixedGraphParameters.toString());
-			haveRunOperationForGraph = false;
 
 			try {
-				GraphOnDriveHandler graphHandler = makeSureThereIsTheGraph(fixedGraphParameters);
+				GraphOnDriveHandler graphHandler = makeSureThereIsTheGraph(fixedGraphParameters, scenarioTask);
+
+				if (scenarioTask.getGoal()==ScenarioTask.Goal.CLEAR && !graphHandler.doesGraphExistOnDisk())	{
+					//Nothing needs to be done.
+					continue;
+				}
 
 				if (scenarioTask.doRunGraphMining())	{
 					executeTaskWithGraphMining(scenarioTask, graphHandler, arrangedData);
 				}
 				else	{
 					executeTaskNoGraphMining(scenarioTask, graphHandler, arrangedData);
+				}
+
+				if (scenarioTask.getGoal() == ScenarioTask.Goal.GRAPH_VISUALISATION)	{
+					//Try to visualise the original graph and provided substructures in either case.
+					accomplishGraphVisualisation(scenarioTask, graphHandler);
 				}
 			} catch (GraphGenerationException | SourceGraphException | PluginException e) {
 				e.printStackTrace();
@@ -113,8 +122,19 @@ public class CentralOperator {
 		presentResultsToUser(scenarioTask, arrangedData);
 	}
 
-	private GraphOnDriveHandler makeSureThereIsTheGraph(GraphParametersSet fixedGraphParameters) throws GraphGenerationException, SourceGraphException	{
+	private GraphOnDriveHandler makeSureThereIsTheGraph(GraphParametersSet fixedGraphParameters, ScenarioTask scenarioTask)
+			throws GraphGenerationException, SourceGraphException	{
 		GraphOnDriveHandler graphHandler = new GraphOnDriveHandler(fixedGraphParameters);
+
+		switch (scenarioTask.getGoal())	{
+		case CLEAR:		//No need to generate the graph in case it does not exist.
+		case CLEARALL:
+			return graphHandler;
+		}
+
+		if (scenarioTask.recompute() == ScenarioTask.Recompute.GRAPHS)	{	//Delete old results in case of recompute, they are irrelative.
+			runCleaning(ScenarioTask.Goal.CLEAR, graphHandler, null, null);
+		}
 
 		if (!graphHandler.doesGraphExistOnDisk())	{
 			System.out.println("\t\tNeed to generate the graph.");
@@ -135,17 +155,21 @@ public class CentralOperator {
 	 */
 	private void executeTaskNoGraphMining(ScenarioTask scenarioTask, GraphOnDriveHandler graphHandler, ArrangedData arrangedData)
 			throws SourceGraphException, GraphGenerationException	{
-		Goal goal = scenarioTask.getGoal();
+		ScenarioTask.Goal goal = scenarioTask.getGoal();
 		try {
 			switch (goal)	{
 			case PERFORMANCE:
-				accomplishPerformanceGoal(graphHandler, null, arrangedData);
+				accomplishPerformanceGoal(scenarioTask, graphHandler, null, arrangedData);
 				break;
 			case MEASURES:
 				accomplishMeasuresGoalOnSolitarySources(scenarioTask, graphHandler, null, arrangedData);
 				break;
-			case GRAPH_VISUALISATION:
+			/*case GRAPH_VISUALISATION:
 				accomplishGraphVisualisation(scenarioTask, graphHandler, null);
+				break;*/
+			case CLEAR:
+			case CLEARALL:
+				accomplishClear(scenarioTask, graphHandler, null);
 				break;
 			}
 		} catch (GraphMiningException e) {	//An impossible situation. This exception exists here just for the sake of compatibility.
@@ -171,7 +195,8 @@ public class CentralOperator {
 					fixedGraphMiningParameters.getSpecifiedParametersAsGroupsOfPairsOfUniqueKeysAndValues());
 
 			RangeOfValues<String> externalSetsOfGroupsFilenames =
-					graphHandler.getGraphParameters().getProvidedForMiningExternalSetsOfGroupsOfNodesFilenames();
+					graphHandler.getGraphParameters().getProvidedForMiningExternalDataFilenames();
+			//FUTURE_WORK Can there be not only sets of groups in those external files provided for mining (in addition to graph)?
 			try {
 				switch (fixedGraphMiningParameters.getJobBase())	{
 				case GRAPH:
@@ -221,19 +246,23 @@ public class CentralOperator {
 		ExtendedMiningParameters miningParameters = new ExtendedMiningParameters(
 				fixedGraphMiningParameters, relativeExternalPathstring, externalSetsOfGroupsFilenames, graphHandler);
 
-		Goal goal = task.getGoal();
+		ScenarioTask.Goal goal = task.getGoal();
 		switch (goal)	{
 		case MINING:
-			accomplishMiningGoal(graphHandler, miningParameters);
+			accomplishMiningGoal(task, graphHandler, miningParameters);
 			break;
 		case PERFORMANCE:
-			accomplishPerformanceGoal(graphHandler, miningParameters, arrangedData);
+			accomplishPerformanceGoal(task, graphHandler, miningParameters, arrangedData);
 			break;
 		case MEASURES:
 			accomplishMeasuresGoalOnSolitarySources(task, graphHandler, miningParameters, arrangedData);
 			break;
 		case GRAPH_VISUALISATION:
 			accomplishGraphVisualisation(task, graphHandler, miningParameters);
+			break;
+		case CLEAR:
+		case CLEARALL:
+			accomplishClear(task, graphHandler, miningParameters);
 			break;
 		}
 	}
@@ -243,8 +272,12 @@ public class CentralOperator {
 	 * @throws SourceGraphException 
 	 * @throws GraphMiningException 
 	 */
-	private void accomplishMiningGoal(GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters)
+	private void accomplishMiningGoal(ScenarioTask task, GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters)
 			throws SourceGraphException, GraphMiningException	{
+		if (task.recompute() == ScenarioTask.Recompute.MINING)	{	//Delete old results in case of recompute, they are irrelative.
+			runCleaning(ScenarioTask.Goal.CLEAR, graphHandler, new AnalysedDataIdentifier(miningParameters), null);
+		}
+
 		if (!StorageScanner.containsMinedData(graphHandler, miningParameters))	{
 			runGraphMiner(graphHandler, miningParameters, false);
 		}
@@ -260,8 +293,8 @@ public class CentralOperator {
 	 * @throws SourceGraphException 
 	 * @throws GraphMiningException 
 	 */
-	private void accomplishPerformanceGoal(GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters, ArrangedData arrangedData)
-			throws SourceGraphException, GraphGenerationException, GraphMiningException	{
+	private void accomplishPerformanceGoal(ScenarioTask task, GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters,
+			ArrangedData arrangedData)	throws SourceGraphException, GraphGenerationException, GraphMiningException	{
 		Long workTimeMillis = null;
 		if (miningParameters == null)	{	//Need performance statistics for graph generation.
 			workTimeMillis = StorageScanner.getPerformanceTime(graphHandler);
@@ -276,8 +309,12 @@ public class CentralOperator {
 			}
 		}
 		else	{							//Need performance statistics for graph mining.
+			if (task.recompute() == ScenarioTask.Recompute.MINING)	{	//Delete old results in case of recompute, they are irrelative.
+				runCleaning(ScenarioTask.Goal.CLEAR, graphHandler, new AnalysedDataIdentifier(miningParameters), null);
+			}
+
 			workTimeMillis = StorageScanner.getOverallPerformanceTime(graphHandler, miningParameters);
-			if (workTimeMillis == null)	{
+			if (workTimeMillis==null)	{
 				workTimeMillis = runGraphMiner(graphHandler, miningParameters, true);
 			}
 		}
@@ -305,19 +342,22 @@ public class CentralOperator {
 			ArrangedData arrangedData)	throws SourceGraphException, GraphMiningException	{
 		if (miningParameters != null)	{
 			//The mining data must be computed to run the computations of characteristics.
-			accomplishMiningGoal(graphHandler, miningParameters);
+			accomplishMiningGoal(task, graphHandler, miningParameters);
 		}
 
 		RangeOfValues<String> providedForMeasuresSetsOfGroupsOfNodesFilenames =
-				graphHandler.getGraphParameters().getProvidedForCharacterizationExternalCoversFilenames();
+				graphHandler.getGraphParameters().getProvidedForCharacterizationExternalFilenames();
+		//FUTURE_WORK #5474 Those can be not only sets of groups of nodes in those files.
 
 		for (Iterator<ParametersSet> measuresIterator = task.getMeasuresIterator() ;
 				measuresIterator.hasNext() ; )	{
 			MeasureParametersSet characteristicParameters = (MeasureParametersSet) measuresIterator.next();
 
-			System.out.print("\t\t\tMeasure: "+characteristicParameters.getJobBase()+"\t"+characteristicParameters.getCharacteristicNameInScenario());
+			System.out.print("\t\t\tMeasure: "+characteristicParameters.getJobBase()+"\t"+
+					characteristicParameters.getCharacteristicNameInScenario()+"\t"+
+					characteristicParameters.getSpecifiedParametersAsGroupsOfPairsOfUniqueKeysAndValues());
 
-			//FUTURE_WORK Rewrite so that the process for graph mining results and for externally provided data will be divided.
+			//FUTURE_WORK Rewrite so that the process for graph mining results and for externally provided data will be divided. #5474 ?
 			// (But they must be both attempted in this method in case of graph mining section present in scenario.)
 
 			AnalysedDataIdentifier minedDataIdentifier = new AnalysedDataIdentifier(miningParameters);
@@ -325,30 +365,33 @@ public class CentralOperator {
 			switch (characteristicParameters.getJobBase())	{
 			case GRAPH:
 				if (miningParameters != null  &&  StorageScanner.containsMinedGraph(graphHandler, miningParameters))	{
-					computeCharacteristic(graphHandler, minedDataIdentifier, characteristicParameters, arrangedData);
+					computeCharacteristic(task, graphHandler, minedDataIdentifier, characteristicParameters, arrangedData);
 					couldComputeCharacteristicOnMiningResults = true;
 				}
 
 				//TODO Check whether we do run characteristic computations on original graphs. Requires adding parameters to measure description.
 				//TODO Check whether there're only some specific graphs on which computations can be run and whether the current graph suits.
-				computeCharacteristic(graphHandler, null, characteristicParameters, arrangedData);	//XXX Run only if responds to the condition above^.
+				computeCharacteristic(task, graphHandler, null, characteristicParameters, arrangedData);	//XXX Run only if responds to the condition above^.
+
+				//TODO Can there be externally provided graphs on which characteristics should be computed?	#5474
 				break;
 			case NODES_GROUPS_SET:
 				if (miningParameters != null  &&  StorageScanner.containsMinedGroupsOfNodes(graphHandler, miningParameters))	{
-					computeCharacteristic(graphHandler, minedDataIdentifier, characteristicParameters, arrangedData);
+					computeCharacteristic(task, graphHandler, minedDataIdentifier, characteristicParameters, arrangedData);
 					couldComputeCharacteristicOnMiningResults = true;
 				}
 
 				if (providedForMeasuresSetsOfGroupsOfNodesFilenames != null)	{
+					//FIXME These computations will be run as many times as there're combinations of mining parameters. #5474
 					for (String setOfGroupsOfNodesFilename : providedForMeasuresSetsOfGroupsOfNodesFilenames)	{
 						AnalysedDataIdentifier externalGroupsIdentifier = new AnalysedDataIdentifier(setOfGroupsOfNodesFilename);
-						computeCharacteristic(graphHandler, externalGroupsIdentifier, characteristicParameters, arrangedData);
+						computeCharacteristic(task, graphHandler, externalGroupsIdentifier, characteristicParameters, arrangedData);
 					}
 				}
 				break;
 			case NUMERIC_CHARACTERISTIC:
 				if (miningParameters != null  &&  StorageScanner.containsMinedCharacteristic(graphHandler, miningParameters))	{
-					computeCharacteristic(graphHandler, minedDataIdentifier, characteristicParameters, arrangedData);
+					computeCharacteristic(task, graphHandler, minedDataIdentifier, characteristicParameters, arrangedData);
 					couldComputeCharacteristicOnMiningResults = true;
 				}
 				break;
@@ -368,37 +411,74 @@ public class CentralOperator {
 	}
 
 	/**
-	 * Visualise mined graph structures or sets of groups of nodes. Visualise the original graph
-	 * or provided external sets of groups of nodes (covers).
+	 * Visualise mined graph structures or sets of groups of nodes.
 	 * @throws GraphMiningException 
 	 * @throws SourceGraphException 
 	 */
 	private void accomplishGraphVisualisation(ScenarioTask task, GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters)
 			throws SourceGraphException, GraphMiningException	{
-		if (miningParameters != null)	{
-			//The mining data must be computed for the results to be visualised.
-			accomplishMiningGoal(graphHandler, miningParameters);
+		//The mining data must be computed for the results to be visualised.
+		accomplishMiningGoal(task, graphHandler, miningParameters);
 
-			GraphParametersSet originalGraphParameters = graphHandler.getGraphParameters();
+		for (GraphVisualisationDescription visualisationDescription : task.getGraphVisualisationDescriptions())	{
+			if (visualisationDescription.getSubstructuresFinalPresentationType() == GraphVisualisationDescription.FinalPresentationType.NO)	{
+				continue;	//This visualisation description says to show no substructures, either mined or externally provided.
+			}
+
 			try {
-				if (StorageScanner.containsMinedGraph(graphHandler, miningParameters))	{
-					IGraph minedGraphStructure = StorageScanner.getMinedGraphStructure(graphHandler, miningParameters);
-					visualiseGraph(task, minedGraphStructure, null, originalGraphParameters, miningParameters);
-				}
-				else if (StorageScanner.containsMinedGroupsOfNodes(graphHandler, miningParameters))	{
-					ISetOfGroupsOfNodes minedGroupsOfNodes = StorageScanner.getMinedGroupsOfNodes(graphHandler, miningParameters);
-					ISetOfGroupsOfNodes[] sets = {minedGroupsOfNodes};
-					visualiseGraph(task, graphHandler.getGraph(), Arrays.asList(sets), originalGraphParameters, miningParameters);
-				}
-			} catch (StorageException e) {
-				System.out.println("ERROR: Cannot visualise mined results.");
+				GraphVisualisationManager.visualise(visualisationDescription, graphHandler, miningParameters);
+			} catch (VisualisationException e) {
 				e.printStackTrace();
 			}
 		}
+	}
+	/**
+	 * Visualise the original graph or provided external sets of groups of nodes (covers).
+	 * @throws GraphMiningException 
+	 * @throws SourceGraphException 
+	 */
+	private void accomplishGraphVisualisation(ScenarioTask task, GraphOnDriveHandler graphHandler)	{
+		for (GraphVisualisationDescription visualisationDescription : task.getGraphVisualisationDescriptions())	{
+			try {
+				GraphVisualisationManager.visualise(visualisationDescription, graphHandler);
+			} catch (VisualisationException e) {
+				e.printStackTrace();
+			}
+		}
+	}
 
-		if (!haveRunOperationForGraph)	{
-			visualiseGraph(task, graphHandler);
-			haveRunOperationForGraph = true;
+	private void accomplishClear(ScenarioTask task, GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters)	{
+		if (!task.doDealWithStatsNMeasures())	{	//No measures section in scenario task.
+			AnalysedDataIdentifier analysedDataIdentifier = (miningParameters==null) ? null : new AnalysedDataIdentifier(miningParameters);
+			runCleaning(task.getGoal(), graphHandler, analysedDataIdentifier, null);
+			return;
+		}
+
+		RangeOfValues<String> providedForMeasuresDataFilenames =
+				graphHandler.getGraphParameters().getProvidedForCharacterizationExternalFilenames();
+
+		for (Iterator<ParametersSet> measuresIterator = task.getMeasuresIterator() ;
+				measuresIterator.hasNext() ; )	{
+			MeasureParametersSet characteristicParameters = (MeasureParametersSet) measuresIterator.next();
+
+			System.out.print("\t\t\tMeasure: "+characteristicParameters.getJobBase()+"\t"+
+					characteristicParameters.getCharacteristicNameInScenario()+"\t"+
+					characteristicParameters.getSpecifiedParametersAsGroupsOfPairsOfUniqueKeysAndValues());
+
+			//Clear the measures that were computed over the mining results (or over the graph itself - if no mining was done).
+			AnalysedDataIdentifier analysedDataIdentifier = (miningParameters==null) ? null : new AnalysedDataIdentifier(miningParameters);
+			runCleaning(task.getGoal(), graphHandler, analysedDataIdentifier, characteristicParameters);
+
+			if (providedForMeasuresDataFilenames != null)	{
+				//FIXME How many times will this thing be run? Considering the case when the graph mining section is present in the scenario.	#5474?
+				for (String setOfGroupsOfNodesFilename : providedForMeasuresDataFilenames)	{
+					//Clear the measures that were computed over the externally provided data sets.
+					analysedDataIdentifier = new AnalysedDataIdentifier(setOfGroupsOfNodesFilename);
+					runCleaning(task.getGoal(), graphHandler, analysedDataIdentifier, characteristicParameters);
+				}
+			}
+
+			System.out.println();
 		}
 	}
 
@@ -428,8 +508,12 @@ public class CentralOperator {
 	}
 
 
-	private void computeCharacteristic(GraphOnDriveHandler graphHandler, AnalysedDataIdentifier analysedDataIdentifier,
+	private void computeCharacteristic(ScenarioTask task, GraphOnDriveHandler graphHandler, AnalysedDataIdentifier analysedDataIdentifier,
 			MeasureParametersSet characteristicParameters, ArrangedData arrangedData) throws SourceGraphException	{
+		if (task.recompute() == ScenarioTask.Recompute.MEASURES)	{	//Delete old results in case of recompute, they are irrelative.
+			runCleaning(ScenarioTask.Goal.CLEAR, graphHandler, analysedDataIdentifier, characteristicParameters);
+		}
+
 		NumericCharacteristic value = null;
 		try {
 			value = StorageScanner.getStatisticValue(graphHandler, analysedDataIdentifier, characteristicParameters);
@@ -498,52 +582,15 @@ public class CentralOperator {
 	}
 
 
-	private void visualiseGraph(ScenarioTask scenarioTask, IGraph graph, Collection<ISetOfGroupsOfNodes> covers,
-			GraphParametersSet originalGraphParameters, ExtendedMiningParameters miningParameters)	{
-		GraphVisualisationManager visualiser = new GraphVisualisationManager(scenarioTask);
-
-		if (covers == null  ||  covers.size() == 0)	{
-			try {
-				visualiser.visualise(graph, originalGraphParameters, miningParameters);
-			} catch (VisualisationException e) {
-				e.printStackTrace();
-			}
-		}
-		else	{
-			for (ISetOfGroupsOfNodes cover : covers)	{
-				try {
-					visualiser.visualise(graph, cover, originalGraphParameters, miningParameters);
-				} catch (VisualisationException e) {
-					e.printStackTrace();
-				}
-			}
-		}
-	}
-
-	private void visualiseGraph(ScenarioTask scenarioTask, GraphOnDriveHandler originalGraphHandler)	throws SourceGraphException	{
-		GraphParametersSet graphParameters = originalGraphHandler.getGraphParameters();
-		IGraph graph = originalGraphHandler.getGraph();
-		RangeOfValues<String> pathsToCovers = graphParameters.getProvidedForCharacterizationExternalCoversFilenames();
-
-		GraphVisualisationManager visualiser = new GraphVisualisationManager(scenarioTask);
-
-		if (pathsToCovers == null  ||  pathsToCovers.isEmpty())	{
-			try {
-				visualiser.visualise(graph, graphParameters, null);
-			} catch (VisualisationException e) {
-				e.printStackTrace();
-			}
-		}
-		else	{
-			for (String pathToCover : pathsToCovers)	{
-				String path = originalGraphHandler.getAbsolutePathPossiblyWithGraphDirectory(pathToCover);
-				try {
-					ISetOfGroupsOfNodes setOfGroupsOfNodes = new SetOfGroupsOfNodes(path, graph);
-					visualiser.visualise(graph, setOfGroupsOfNodes, graphParameters, null);
-				} catch (VisualisationException | SetOfGroupsException e) {
-					e.printStackTrace();
-				}
-			}
+	private void runCleaning(ScenarioTask.Goal goal, GraphOnDriveHandler graphHandler, AnalysedDataIdentifier analysedDataIdentifier,
+			MeasureParametersSet characteristicParameters)	{
+		switch (goal)	{
+		case CLEAR:
+			StorageCleaner.clear(graphHandler, analysedDataIdentifier, characteristicParameters);
+			break;
+		case CLEARALL:
+			StorageCleaner.clearall(graphHandler, analysedDataIdentifier, characteristicParameters);
+			break;
 		}
 	}
 }

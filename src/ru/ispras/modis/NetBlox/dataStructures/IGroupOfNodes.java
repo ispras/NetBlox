@@ -10,6 +10,11 @@ public interface IGroupOfNodes extends Iterable<IGraph.INode> {
 
 	public boolean contains(IGraph.INode node);
 
+	/**
+	 * @return	group ID. <code>null</null> if none.
+	 */
+	public Integer getID();
+
 	public int size();
 
 	//public int countCommonNodes(IGroupOfNodes otherGroup);

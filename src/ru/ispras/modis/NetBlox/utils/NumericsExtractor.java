@@ -21,6 +21,9 @@ public class NumericsExtractor {
 	private static final Pattern FLOAT_PATTERN = Pattern.compile(FLOAT_REGEX);
 	private static final Pattern FLOAT_AFTER_WHITESPACE_PATTERN = Pattern.compile(WHITESPACE_CHARACTER_REGEX+FLOAT_REGEX);
 
+	private static final String INFINITY_REGEX = "-?Inf(inity)?";
+	private static final Pattern INFINITY_PATTERN = Pattern.compile(INFINITY_REGEX);
+
 
 	/**
 	 * Extracts a single Float value from an InputStream.
@@ -63,6 +66,16 @@ public class NumericsExtractor {
 			matcher = FLOAT_AFTER_WHITESPACE_PATTERN.matcher(line);
 			if (matcher.find())	{
 				floatInString = matcher.group().trim();
+			}
+		}
+
+		if (floatInString == null)	{	//It could have been a NaN or Infinity
+			if (line.equalsIgnoreCase("NaN"))	{
+				return Float.NaN;
+			}
+			matcher = INFINITY_PATTERN.matcher(line);
+			if (matcher.matches())	{
+				floatInString = matcher.group();
 			}
 		}
 

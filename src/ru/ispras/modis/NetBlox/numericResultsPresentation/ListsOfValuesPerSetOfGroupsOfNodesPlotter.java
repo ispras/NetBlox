@@ -28,7 +28,6 @@ public class ListsOfValuesPerSetOfGroupsOfNodesPlotter extends JFreeChartPlotter
 		XYSeries series = null;
 
 		switch (aggregationType)	{
-		case BIG_INTERVALS:	//nothing special for now
 		case DISTRIBUTION:
 			series = getDistributionXYSeries(measureValues, seriesLabel);
 			break;
@@ -46,7 +45,6 @@ public class ListsOfValuesPerSetOfGroupsOfNodesPlotter extends JFreeChartPlotter
 	@Override
 	protected void defineAxesLabels(SingleTypeBigChart plotData)	{
 		switch (plotData.getStatisticsAggregationType())	{
-		case BIG_INTERVALS:	//nothing special for now
 		case DISTRIBUTION:
 			X_AXIS_LABEL = plotData.getMeasureValuesName();
 			Y_AXIS_LABEL = LanguagesConfiguration.getNetBloxLabel(KEY_NUMBER_OF_OCCURENCES);
@@ -78,6 +76,9 @@ public class ListsOfValuesPerSetOfGroupsOfNodesPlotter extends JFreeChartPlotter
 		double cumulativeValue = 0.0;
 
 		for (Double value : localValues)	{
+			if (value.equals(Double.NaN) || value.equals(Double.NEGATIVE_INFINITY) || value.equals(Double.POSITIVE_INFINITY))	{
+				continue;
+			}
 			cumulativeValue += value;
 			communityRankNumber++;
 
@@ -99,8 +100,11 @@ public class ListsOfValuesPerSetOfGroupsOfNodesPlotter extends JFreeChartPlotter
 
 		int orderNumber = 0;
 		for (Double value : values)	{
-			orderNumber++;
+			if (value.equals(Double.NaN) || value.equals(Double.NEGATIVE_INFINITY) || value.equals(Double.POSITIVE_INFINITY))	{
+				continue;
+			}
 
+			orderNumber++;
 			series.addCorrect((Integer)orderNumber, value);
 		}
 

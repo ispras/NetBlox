@@ -27,6 +27,7 @@ public abstract class MinerResults extends ResultsFromPlugins {
 
 	private MinedResultType resultType;
 	private GraphMiningParametersSet parametersOfAlgorithmThatHadMinedThisResult;
+	protected Integer currentTimeSlice = null;	//The time slice for which the results are put into this container (if time slices are considered).
 
 	private List<MinerResults> containerForMultipleResults = null;
 
@@ -122,5 +123,12 @@ public abstract class MinerResults extends ResultsFromPlugins {
 
 	public GraphMiningParametersSet getParametersOfAlgorithm()	{
 		return parametersOfAlgorithmThatHadMinedThisResult;
+	}
+
+	/**
+	 * @return time slice for this result when they are considered. <code>null</code> if time slices do not matter (for this result).
+	 */
+	public Integer getTimeSlice()	{
+		return currentTimeSlice;
 	}
 }

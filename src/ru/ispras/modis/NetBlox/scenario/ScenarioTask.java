@@ -22,12 +22,18 @@ public class ScenarioTask {
 	public static final int NO_SUPPLEMENTARY_COMPUTATIONS = -1;
 
 	public static enum Goal {
-		NONE, MINING, PERFORMANCE, MEASURES, GRAPH_VISUALISATION
+		NONE, MINING, PERFORMANCE, MEASURES, GRAPH_VISUALISATION, CLEAR, CLEARALL
+	}
+
+	public static enum Recompute	{
+		NO, MEASURES, MINING, GRAPHS
 	}
 
 
 	private Goal goal = Goal.MINING;
+	private Recompute recompute = Recompute.NO;
 	private boolean isPresentGraphMiningSection = false;
+	private boolean isPresentMeasuresSection = false;
 
 	private Collection<AlgorithmDescription> graphs = null;
 	private Map<String, AlgorithmDescription> preliminaryComputations = null;	//Map<algorithmID: String, description: DescriptionPreliminaryAlgorithm>
@@ -62,6 +68,12 @@ public class ScenarioTask {
 		}
 	}
 
+	public void setRecompute(Recompute v)	{
+		this.recompute = v;
+	}
+	public Recompute recompute()	{
+		return recompute;
+	}
 
 	public Goal getGoal()	{
 		return goal;
@@ -91,6 +103,9 @@ public class ScenarioTask {
 
 	public boolean doRunGraphMining()	{
 		return isPresentGraphMiningSection;
+	}
+	public boolean doDealWithStatsNMeasures()	{
+		return isPresentMeasuresSection;
 	}
 
 	public boolean doNeedArrangedData()	{
@@ -131,6 +146,7 @@ public class ScenarioTask {
 		if (measures == null)	{
 			measures = new LinkedList<AlgorithmDescription>();
 			uniqueMeasuresByAlgorithm = new HashSet<DescriptionMeasure>();
+			isPresentMeasuresSection = true;
 		}
 
 		measures.add(measureDescription);

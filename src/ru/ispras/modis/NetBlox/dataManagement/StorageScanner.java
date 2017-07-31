@@ -57,35 +57,113 @@ public class StorageScanner extends StorageHandler {
 		//XXX The case of multiple mined graphs hasn't been considered.
 		return containsMinedGraph(graphHandler, miningParameters) ||
 				containsMinedGroupsOfNodes(graphHandler, miningParameters) ||
-				containsMinedCharacteristic(graphHandler, miningParameters);
+				containsMinedCharacteristic(graphHandler, miningParameters) ||
+				containsMinedMultipleGraphs(graphHandler, miningParameters);
 	}
 
 	public static boolean containsMinedGraph(GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters)	{
-		String pathToStoredData = getPathStringToStoredMinedData(graphHandler, miningParameters, ContentType.GRAPH_EDGES);
-		File storageFile = new File(pathToStoredData);
-		return storageFile.exists();
+		return containsMinedData(graphHandler, miningParameters, ContentType.GRAPH_EDGES);
 	}
 	public static boolean containsMinedGroupsOfNodes(GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters)	{
-		String pathToStoredData = getPathStringToStoredMinedData(graphHandler, miningParameters, ContentType.NODES_GROUPS);
-		File storageFile = new File(pathToStoredData);
-		return storageFile.exists();
+		return containsMinedData(graphHandler, miningParameters, ContentType.NODES_GROUPS);
 	}
 	public static boolean containsMinedCharacteristic(GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters)	{
-		String pathToStoredData = getPathStringToStoredMinedData(graphHandler, miningParameters, ContentType.CHARACTERISTIC);
-		File storageFile = new File(pathToStoredData);
-		return storageFile.exists();
+		return containsMinedData(graphHandler, miningParameters, ContentType.CHARACTERISTIC);
+	}
+	private static boolean containsMinedData(GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters, ContentType contentType)	{
+		GraphMiningParametersSet algorithmParameters = miningParameters.getMiningParameters();
+		if (algorithmParameters.considerTimeSlices())	{
+			boolean result = true;
+			for (Integer timeSlice : algorithmParameters.getTimeSlices())	{
+				String pathToStoredForTimeSlice = getPathStringToStoredMinedData(graphHandler, miningParameters, contentType, timeSlice);
+				if (!(new File(pathToStoredForTimeSlice)).exists())	{
+					//For now let's consider this as not all possible iterations were recorded, so it's possible to get the requested after new launch.
+					//FUTURE_WORK Find out how many iterations had been run really and estimate whether there's sense to try more iterations.
+					//FUTURE_WORK Another solution, a worse one, is to compare the last iterated file with absolute result.
+					result = false;
+					break;
+				}
+			}
+			return result;
+		}
+		else	{
+			String pathToStoredData = getPathStringToStoredMinedData(graphHandler, miningParameters, contentType, null);
+			File storageFile = new File(pathToStoredData);
+			return storageFile.exists();
+		}
+	}
+
+	public static boolean containsMinedMultipleGraphs(GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters)	{
+		String storageDirectoryPathString = getPathStringToMinedDataDirectory(graphHandler, miningParameters);
+		File storageDirectory = new File(storageDirectoryPathString);
+		if (!storageDirectory.exists())	{
+			return false;
+		}
+
+		boolean result = false;
+
+		GraphMiningParametersSet algorithmParameters = miningParameters.getMiningParameters();
+		if (algorithmParameters.considerTimeSlices())	{
+			for (Integer timeSlice : algorithmParameters.getTimeSlices())	{
+				boolean existForTimeSlice = false;
+
+				String storageFilenameBase = ContentType.GRAPH_EDGES.toString() + timeSlice + "_";
+				for (String resultFileName : storageDirectory.list())	{
+					if (resultFileName.startsWith(storageFilenameBase))	{
+						existForTimeSlice = true;
+						break;
+					}
+				}
+
+				if (!existForTimeSlice)	{
+					//As in case of private containsMinedData(...) consider this as not all possible iterations were recorded,
+					//so it's possible to get the requested after new launch.	//FUTURE_WORK See above, private containsMinedData(...).
+					return false;
+				}
+			}
+			result = true;
+		}
+		else	{
+			String storageFilenameBase = ContentType.GRAPH_EDGES.toString() + "_";
+			for (String resultFileName : storageDirectory.list())	{
+				if (resultFileName.startsWith(storageFilenameBase))	{
+					return true;
+				}
+			}
+		}
+
+		return result;
 	}
 
 
-	public static String getMinedDataFilePathstring(GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters,
+	public static String getMinedDataFilePathstring(GraphOnDriveHandler graphHandler, ExtendedMiningParameters extendedMiningParameters,
 			ContentType contentType) throws StorageException	{
 		//TODO What about SupplementaryData? Check inside getPathStringToStoredMinedData(...) as well.
 
-		String pathToStoredData = getPathStringToStoredMinedData(graphHandler, miningParameters, contentType);
+		String pathToStoredData = getPathStringToStoredMinedData(graphHandler, extendedMiningParameters, contentType, null);
 
 		File storageFile = new File(pathToStoredData);
 		if (!storageFile.exists())	{
-			throw new StorageException("Could not get requested mined data.");
+			GraphMiningParametersSet miningParameters = extendedMiningParameters.getMiningParameters();
+			if (!miningParameters.considerTimeSlices())	{	//No time slices, only one result could exist.
+				throw new StorageException("Could not get requested mined data.");
+			}
+
+			//There're time slices.
+			pathToStoredData = null;
+			List<Integer> timeSlices = miningParameters.getTimeSlices();
+			for (int i = timeSlices.size()-1 ; i>=0 ; i--)	{
+				String pathForTimeSlice = getPathStringToStoredMinedData(graphHandler, extendedMiningParameters, contentType, timeSlices.get(i));
+				if ((new File(pathToStoredData)).exists())	{	//Found the file for the last time slice for which there's a result.
+					pathToStoredData = pathForTimeSlice;
+					//FUTURE_WORK It is also possible to remove all the later time slices from the list in miningParameters,
+					//but that doesn't seem to be necessary for now. Consider it later?
+					break;
+				}
+			}
+			if (pathToStoredData == null)	{	//Means we could find no results for any time slice.
+				throw new StorageException("Could not get requested mined data.");
+			}
 		}
 
 		return pathToStoredData;
@@ -95,6 +173,22 @@ public class StorageScanner extends StorageHandler {
 		//TODO What about SupplementaryData?
 		String pathInStorage = getMinedDataFilePathstring(graphHandler, miningParameters, ContentType.GRAPH_EDGES);
 
+		GraphParametersSet originalGraphParameters = graphHandler.getGraphParameters();
+		IGraph minedGraph = new Graph(pathInStorage, originalGraphParameters.isDirected(), originalGraphParameters.isWeighted());
+		return minedGraph;
+	}
+	/**
+	 * @return	mined graph for <code>timeSlice</code> (parameters considered). <code>null</code> if there're no results
+	 * 			for this <code>timeSlice</code>.
+	 */
+	public static IGraph getMinedGraphStructure(GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters, Integer timeSlice)
+			throws StorageException	{
+		//TODO What about SupplementaryData?
+		String pathInStorage = getPathStringToStoredMinedData(graphHandler, miningParameters, ContentType.GRAPH_EDGES, timeSlice);
+
+		if (!(new File(pathInStorage)).exists())	{	//In case the results for this or that time slice are absent for some reason.
+			return null;
+		}
 		GraphParametersSet originalGraphParameters = graphHandler.getGraphParameters();
 		IGraph minedGraph = new Graph(pathInStorage, originalGraphParameters.isDirected(), originalGraphParameters.isWeighted());
 		return minedGraph;
@@ -113,6 +207,26 @@ public class StorageScanner extends StorageHandler {
 			throw new StorageException(e);
 		}
 	}
+	/**
+	 * @return	groups of nodes for <code>timeSlice</code> (parameters considered). <code>null</code> if there're no results
+	 * 			for this <code>timeSlice</code>.
+	 */
+	public static ISetOfGroupsOfNodes getMinedGroupsOfNodes(GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters,
+			Integer timeSlice)	throws StorageException, SourceGraphException	{
+		//TODO What about SupplementaryData?
+		String pathInStorage = getPathStringToStoredMinedData(graphHandler, miningParameters, ContentType.NODES_GROUPS, timeSlice);
+
+		if (!(new File(pathInStorage)).exists())	{	//In case the results for this or that time slice are absent for some reason.
+			return null;
+		}
+		try	{
+			ISetOfGroupsOfNodes minedGroupsOfNodes = new SetOfGroupsOfNodes(pathInStorage, graphHandler.getGraph());
+			return minedGroupsOfNodes;
+		}
+		catch (SetOfGroupsException e)	{
+			throw new StorageException(e);
+		}
+	}
 
 	public static NumericCharacteristic getMinedCharacteristic(GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters)
 			throws StorageException	{
@@ -120,17 +234,19 @@ public class StorageScanner extends StorageHandler {
 		return retrieveCharacteristic(pathInStorage);
 	}
 
+	@SuppressWarnings("unchecked")
 	public static <IT> List<IT> getMinedMultipleGraphStructures(Class<IT> itemClass,
-			GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters)	{
+			GraphOnDriveHandler graphHandler, ExtendedMiningParameters miningParameters, Integer timeSlice)	{
 		GraphParametersSet originalGraphParameters = graphHandler.getGraphParameters();
 
 		List<IT> pathsToMined = new LinkedList<IT>();	//XXX Is it better to return null if no result files are found?
 
-		String storageFilenameBase = ContentType.GRAPH_EDGES.toString();
+		String storageFilenameBase = ContentType.GRAPH_EDGES.toString() + ((timeSlice==null)?"":timeSlice) + "_";
+
 		String storageDirectoryPathString = getPathStringToMinedDataDirectory(graphHandler, miningParameters);
 		File storageDirectory = new File(storageDirectoryPathString);
 		for (String resultFileName : storageDirectory.list())	{
-			if (!resultFileName.startsWith(storageFilenameBase) || resultFileName.equals(storageFilenameBase))	{
+			if (!resultFileName.startsWith(storageFilenameBase))	{
 				continue;
 			}
 
@@ -229,11 +345,16 @@ public class StorageScanner extends StorageHandler {
 			if (!line.isEmpty())	{
 				String[] dataElementsFromLine = line.split("\\s");
 
-				//ATTENTION We currently consider only distributions with integer values to be stored.
-				Integer value = Integer.parseInt(dataElementsFromLine[0]);
+				Double value = Double.parseDouble(dataElementsFromLine[0]);
 				int numberOfOccurences = Integer.parseInt(dataElementsFromLine[1]);
 
-				result.addToDistribution(value, numberOfOccurences);
+				if (value.equals(Double.NaN) || value.equals(Double.NEGATIVE_INFINITY) || value.equals(Double.POSITIVE_INFINITY) ||
+						!value.equals(Math.rint(value)))	{
+					result.addToDistribution(value, numberOfOccurences);
+				}
+				else	{
+					result.addToDistribution(value.intValue(), numberOfOccurences);
+				}
 			}
 		}
 

@@ -3,6 +3,7 @@ package ru.ispras.modis.NetBlox.dataStructures;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
@@ -10,6 +11,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
+
+import ru.ispras.modis.NetBlox.utils.NumbersComparator;
 
 /**
  * Container for characteristic statistics and quality measures.
@@ -30,7 +33,7 @@ public class NumericCharacteristic {
 		private int numberOfAddedValues;
 
 		public Distribution()	{
-			numbersOfOccurences = new TreeMap<Number, Integer>();
+			numbersOfOccurences = new TreeMap<Number, Integer>(new NumbersComparator());
 			numberOfAddedValues = 0;
 		}
 
@@ -163,14 +166,14 @@ public class NumericCharacteristic {
 		listOfValues.add(value);		//distribution.addValue(value);
 	}
 
-	public void addToDistribution(Integer value)	{
+	public void addToDistribution(Number value)	{
 		if (type != Type.DISTRIBUTION)	{
 			//XXX Error. Throw exception.
 		}
 		distribution.addValue(value);
 	}
 
-	public void addToDistribution(Integer value, int numberOfOccurences)	{
+	public void addToDistribution(Number value, int numberOfOccurences)	{
 		if (type != Type.DISTRIBUTION)	{
 			//XXX Error. Throw exception.
 		}
@@ -231,9 +234,29 @@ public class NumericCharacteristic {
 		//int numberOfIntervals = (int) Math.floor(Math.pow(listOfValues.size(), 1.0/3));
 		//int numberOfIntervals = (int) Math.floor(Math.log(listOfValues.size()));
 
-		double minValue = Collections.min(listOfValues);
-		double maxValue = Collections.max(listOfValues)*1.00001;
-		double intervalLength = (maxValue - minValue) / numberOfIntervals;
+		Iterator<Double> iterator = listOfValues.iterator();
+		Double minValue = iterator.next();	//Collections.min(listOfValues);
+		while (minValue.equals(Double.NaN) || minValue.equals(Double.NEGATIVE_INFINITY) || minValue.equals(Double.POSITIVE_INFINITY))	{
+			distribution.addValue(minValue);
+			if (iterator.hasNext())	{
+				minValue = iterator.next();
+			}
+			else	{
+				return distribution;
+			}
+		}
+		Double maxValue = minValue;			//Collections.max(listOfValues)*1.00001;
+		while (iterator.hasNext())	{
+			Double value = iterator.next();
+			if (value.equals(Double.NaN) || value.equals(Double.NEGATIVE_INFINITY) || value.equals(Double.POSITIVE_INFINITY))	{
+				distribution.addValue(value);
+			}
+			else	{
+				minValue = Math.min(minValue, value);
+				maxValue = Math.max(maxValue, value);
+			}
+		}
+		double intervalLength = (maxValue*1.0001 - minValue) / numberOfIntervals;
 		//double halfInterval = 0.5 * intervalLength;
 
 		LinkedList<Double> localList = new LinkedList<Double>(listOfValues);
@@ -248,6 +271,7 @@ public class NumericCharacteristic {
 				if (intervalMinValue <= candidate  &&  candidate <= intervalMaxValue)	{
 					//distribution.addValue(intervalMidPoint);
 					distribution.addValue(intervalMinValue);
+					//distribution.addValue(intervalMaxValue);
 					localValuesIterator.remove();
 				}
 			}
@@ -348,7 +372,7 @@ public class NumericCharacteristic {
 
 	public void add(NumericCharacteristic other)	{
 		if (type != other.type)	{
-			//TODO Error! Throw exception.
+			//XXX Error! Throw exception.
 		}
 
 		switch (type)	{

@@ -84,7 +84,7 @@ public class GraphOnDriveHandler {
 	 * @param parameters
 	 * @return	the path to the directory with graph data (strictly relative if for generated graph; either relative or absolute for uploaded).
 	 */
-	private StringBuilder generateGraphTypeRelativeDirectory(GraphParametersSet parameters)	{
+	public StringBuilder generateGraphTypeRelativeDirectory(GraphParametersSet parameters)	{
 		StringBuilder pathBuilder;
 		if (parameters instanceof UploadedGraphDataParametersSet)	{
 			UploadedGraphDataParametersSet uploadedDataParameters = (UploadedGraphDataParametersSet) parameters;

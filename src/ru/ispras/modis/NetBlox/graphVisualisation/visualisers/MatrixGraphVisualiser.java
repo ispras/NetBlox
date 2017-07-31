@@ -1,5 +1,7 @@
 package ru.ispras.modis.NetBlox.graphVisualisation.visualisers;
 
+import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -14,13 +16,18 @@ import org.jfree.data.xy.XYSeriesCollection;
 
 import ru.ispras.modis.NetBlox.JFreeChartUtils;
 import ru.ispras.modis.NetBlox.configuration.LanguagesConfiguration;
+import ru.ispras.modis.NetBlox.dataManagement.GraphOnDriveHandler;
+import ru.ispras.modis.NetBlox.dataManagement.StorageWriter;
 import ru.ispras.modis.NetBlox.dataStructures.IGraph;
 import ru.ispras.modis.NetBlox.dataStructures.IGroupOfNodes;
+import ru.ispras.modis.NetBlox.dataStructures.IPackOfGraphStructures;
 import ru.ispras.modis.NetBlox.dataStructures.ISetOfGroupsOfNodes;
 import ru.ispras.modis.NetBlox.dataStructures.internalMechs.ExtendedMiningParameters;
+import ru.ispras.modis.NetBlox.exceptions.VisualisationException;
 import ru.ispras.modis.NetBlox.numericResultsPresentation.JFreeVerticalRectangleDrawingSupplier;
 import ru.ispras.modis.NetBlox.scenario.GraphParametersSet;
 import ru.ispras.modis.NetBlox.scenario.GraphVisualisationDescription;
+import ru.ispras.modis.NetBlox.utils.MiningJobBase;
 
 /**
  * Represents overlapping communities as matrix, showing the belonging of nodes
@@ -70,27 +77,36 @@ public class MatrixGraphVisualiser extends GraphVisualiser {
 	private static final int APPROXIMATE_LABELS_AREA_HEIGHT = 150;
 
 
-	public MatrixGraphVisualiser(GraphVisualisationDescription visualisationDescription) {
-		super(visualisationDescription);
+	public MatrixGraphVisualiser(GraphVisualisationDescription visualisationDescription, MiningJobBase.JobBase minedDataType) {
+		super(visualisationDescription, minedDataType);
 	}
 
 
 	@Override
-	public void visualise(IGraph graph, GraphParametersSet initialGraphParameters, ExtendedMiningParameters miningParameters) {
-		// TODO Auto-generated method stub
-		//Make a chart of connections between nodes?
+	public void visualise(IGraph graph, GraphParametersSet initialGraphParameters, ExtendedMiningParameters miningParameters, Integer timeSlice) {
+		//FUTURE_WORK Make a chart of connections between nodes? Auto-generated method stub.
+		System.out.println("WARNING: Visualising a graph without of groups of nodes is not supproted in matrix visualisation mode.");
 	}
 
-
 	@Override
-	public void visualise(IGraph graph, ISetOfGroupsOfNodes setOfGroupsOfNodes, GraphParametersSet initialGraphParameters,
-			ExtendedMiningParameters miningParameters) {
-		XYSeriesCollection seriesWithMatrixData = prepareSeriesCollection(setOfGroupsOfNodes);
+	public void visualise(IGraph graph, IPackOfGraphStructures<?> packOfGraphStructures, GraphParametersSet initialGraphParameters,
+			ExtendedMiningParameters miningParameters, Integer timeSlice) throws VisualisationException {
+		if (minedDataType != MiningJobBase.JobBase.NODES_GROUPS_SET)	{
+			System.out.println("WARNING: Visualising graph substructure is not supproted in matrix visualisation mode.");
+			return;
+		}
+
+		XYSeriesCollection seriesWithMatrixData = prepareSeriesCollection((ISetOfGroupsOfNodes) packOfGraphStructures);
 
 		JFreeChart chart = makeChart(seriesWithMatrixData);
 
-		String exportFilename = makePNGExportFilePathname(initialGraphParameters, miningParameters);
-		JFreeChartUtils.exportToPNG(exportFilename, chart, DRAWING_AREA_WIDTH, DRAWING_AREA_HEIGHT);
+		export(chart, initialGraphParameters, miningParameters, timeSlice);
+	}
+
+	@Override
+	public void visualiseGroupsOverGraph(IGraph graph, GraphOnDriveHandler initialGraphHandler, ExtendedMiningParameters extendedMiningParameters)
+			throws VisualisationException {
+		callVisualisationForTimeSlices(graph, initialGraphHandler, extendedMiningParameters);
 	}
 
 
@@ -169,5 +185,19 @@ public class MatrixGraphVisualiser extends GraphVisualiser {
 		NumberAxis xAxis = new JFreeSectionsBoundariesAxis(xAxisLabel, communitiesPositionsData);
 
 		plot.setDomainAxis(xAxis);
+	}
+
+
+	private void export(JFreeChart chart, GraphParametersSet initialGraphParameters, ExtendedMiningParameters miningParameters, Integer timeSlice)
+			throws VisualisationException	{
+		String exportFilename = makePNGExportFilePathname(initialGraphParameters, miningParameters, timeSlice);
+
+		try {
+			StorageWriter.makeSureDirectoryExists(Paths.get(exportFilename).getParent());
+		} catch (IOException e) {
+			throw new VisualisationException(e);
+		}
+
+		JFreeChartUtils.exportToPNG(exportFilename, chart, DRAWING_AREA_WIDTH, DRAWING_AREA_HEIGHT);
 	}
 }

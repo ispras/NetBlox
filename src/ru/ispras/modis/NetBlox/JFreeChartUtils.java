@@ -32,7 +32,6 @@ public class JFreeChartUtils {
 		try {
 			ChartUtilities.saveChartAsPNG(pngFile, chart, width, height);
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}

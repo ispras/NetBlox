@@ -38,6 +38,14 @@ public class TaskParser extends XMLElementWithChildrenProcessor {
 	private static final String ATTRIBUTE_GOAL_VALUE_PERFORMANCE = "performance";
 	private static final String ATTRIBUTE_GOAL_VALUE_MEASURES = "measures";
 	private static final String ATTRIBUTE_GOAL_VALUE_GRAPH_VISUALISATION = "graphVisualisation";
+	private static final String ATTRIBUTE_GOAL_VALUE_CLEAR = "clear";
+	private static final String ATTRIBUTE_GOAL_VALUE_CLEARALL = "clearall";
+
+	private static final String ATTRIBUTE_RECOMPUTE = "recompute";
+	private static final String ATTRIBUTE_RECOMPUTE_NO = "no";
+	private static final String ATTRIBUTE_RECOMPUTE_MEASURES = "measures";	//TAG_MEASURES;
+	private static final String ATTRIBUTE_RECOMPUTE_MINING = "mining";		//ATTRIBUTE_GOAL_VALUE_MINING;
+	private static final String ATTRIBUTE_RECOMPUTE_GRAPHS = "graphs";		//TAG_GRAPHS;
 
 	private Collection<ScenarioTask> tasksStorage;
 
@@ -76,6 +84,7 @@ public class TaskParser extends XMLElementWithChildrenProcessor {
 
 		ScenarioTask.Goal goal = extractGoal(attributes);
 		currentTask = new ScenarioTask(goal);
+		checkRecompute(attributes, currentTask);
 
 		graphsProcessor.setStorage(currentTask);
 		//TODO preliminarySectionProcessor.setStorage(currentTask);
@@ -120,10 +129,36 @@ public class TaskParser extends XMLElementWithChildrenProcessor {
 		else if (goalInText.equalsIgnoreCase(ATTRIBUTE_GOAL_VALUE_GRAPH_VISUALISATION))	{
 			goal = ScenarioTask.Goal.GRAPH_VISUALISATION;
 		}
+		else if (goalInText.equalsIgnoreCase(ATTRIBUTE_GOAL_VALUE_CLEAR))	{
+			goal = ScenarioTask.Goal.CLEAR;
+		}
+		else if (goalInText.equalsIgnoreCase(ATTRIBUTE_GOAL_VALUE_CLEARALL))	{
+			goal = ScenarioTask.Goal.CLEARALL;
+		}
 		else	{
 			throw new ScenarioException("Unknown scenario goal: "+goalInText);
 		}
 
 		return goal;
+	}
+
+	private void checkRecompute(Attributes attributes, ScenarioTask task)	{
+		String valueInText = attributes.getValue(ATTRIBUTE_RECOMPUTE);
+
+		if (valueInText == null  ||  valueInText.isEmpty()  ||  valueInText.equalsIgnoreCase(ATTRIBUTE_RECOMPUTE_NO))	{
+			return;
+		}
+		else if (valueInText.equalsIgnoreCase(ATTRIBUTE_RECOMPUTE_MEASURES))	{
+			task.setRecompute(ScenarioTask.Recompute.MEASURES);
+		}
+		else if (valueInText.equalsIgnoreCase(ATTRIBUTE_RECOMPUTE_MINING))	{
+			task.setRecompute(ScenarioTask.Recompute.MINING);
+		}
+		else if (valueInText.equalsIgnoreCase(ATTRIBUTE_RECOMPUTE_GRAPHS))	{
+			task.setRecompute(ScenarioTask.Recompute.GRAPHS);
+		}
+		else	{
+			System.out.println("WARNING:\tUnknown recomputation attribute value. No recomputations will be run.");
+		}
 	}
 }

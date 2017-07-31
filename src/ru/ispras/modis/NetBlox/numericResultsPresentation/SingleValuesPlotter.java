@@ -16,6 +16,7 @@ import java.util.Set;
 
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.JFreeChart;
+import org.jfree.chart.axis.CategoryAxis;
 import org.jfree.chart.axis.NumberAxis;
 import org.jfree.chart.axis.ValueAxis;
 import org.jfree.chart.plot.CategoryPlot;
@@ -23,11 +24,14 @@ import org.jfree.chart.plot.DrawingSupplier;
 import org.jfree.chart.plot.PlotOrientation;
 import org.jfree.chart.plot.XYPlot;
 import org.jfree.chart.renderer.category.BarRenderer;
+import org.jfree.chart.renderer.category.BoxAndWhiskerRenderer;
+import org.jfree.chart.renderer.category.LineAndShapeRenderer;
 import org.jfree.chart.renderer.xy.StandardXYItemRenderer;
 import org.jfree.chart.renderer.xy.XYItemRenderer;
 import org.jfree.data.category.CategoryDataset;
 import org.jfree.data.statistics.BoxAndWhiskerCalculator;
 import org.jfree.data.statistics.BoxAndWhiskerItem;
+import org.jfree.data.statistics.DefaultBoxAndWhiskerCategoryDataset;
 import org.jfree.data.xy.XYSeries;
 import org.jfree.data.xy.XYSeriesCollection;
 
@@ -61,6 +65,20 @@ public class SingleValuesPlotter extends JFreeChartPlotter {
 		}
 	}
 
+	class MeanValuesBAWDataset extends DefaultBoxAndWhiskerCategoryDataset	{
+		private static final long serialVersionUID = 1L;
+		@Override
+	    public Number getValue(int row, int column) {
+			return getMeanValue(row, column);
+		}
+		@SuppressWarnings("rawtypes")
+		@Override
+	    public Number getValue(Comparable rowKey, Comparable columnKey) {
+			return getMeanValue(rowKey, columnKey);
+		}
+	}
+
+
 	private static final int MARKERS_AUGMENTATION_COEFFICIENT = 2;
 
 	private static final String KEY_GRAPHS = "graphs";
@@ -72,7 +90,7 @@ public class SingleValuesPlotter extends JFreeChartPlotter {
 	}
 
 
-	public void drawPlot(SingleTypeBigChart plotData) throws ResultsPresentationException	{
+	public void drawPlot(SingleTypeBigChart plotData, NumericCharacteristic.Type individualValueType) throws ResultsPresentationException	{
 		currentPlotData = plotData;
 
 		JFreeChart chart = null;
@@ -80,15 +98,21 @@ public class SingleValuesPlotter extends JFreeChartPlotter {
 			CategoryDataset categoryDataset = prepareCategoryDataset(plotData);
 			chart = makeChart(plotData, categoryDataset);
 		}
-		else	{
-			if (plotData.doAveraging())	{
+		else if (plotData.doAveraging())	{
+			String xVariationID = plotData.iterator().next().getVariationIdForDimension(MultiDimensionalArray.FIRST_DIMENSION);
+			if (xVariationID.equals(RangeOfValues.NO_RANGE_ID)  &&  individualValueType==NumericCharacteristic.Type.SINGLE_VALUE)	{
+				setXAxisSpecified(false);
+				MeanValuesBAWDataset boxWhiskersForCategories = prepareBoxAndWhiskerCategoryDataset(plotData);
+				chart = makeChart(plotData, boxWhiskersForCategories);
+			}
+			else	{
 				XYDatasetPair boxWhiskerAndSeriesPair = prepareDoubleDataset(plotData);
 				chart = makeChart(plotData, boxWhiskerAndSeriesPair);
 			}
-			else	{
-				XYSeriesCollection seriesCollectionForPlotting = prepareSeriesCollection(plotData);
-				chart = makeChart(plotData, seriesCollectionForPlotting);
-			}
+		}
+		else	{
+			XYSeriesCollection seriesCollectionForPlotting = prepareSeriesCollection(plotData);
+			chart = makeChart(plotData, seriesCollectionForPlotting);
 		}
 
 		JFreeChartUtils.exportToPNG(makePNGPlotFilePathname(plotData), chart, plotData.getPlotWidth(), plotData.getPlotHeight());
@@ -124,6 +148,21 @@ public class SingleValuesPlotter extends JFreeChartPlotter {
 		}
 
 		return datasetPair;
+	}
+
+	private MeanValuesBAWDataset prepareBoxAndWhiskerCategoryDataset(SingleTypeBigChart plotData) throws ResultsPresentationException	{
+		MeanValuesBAWDataset dataset = new MeanValuesBAWDataset();
+
+		for (MultiDimensionalArray lineData : plotData)	{
+			Collection<MultiDimensionalArray.DataCell> toBeAveraged = lineData.getMultipleValues(MultiDimensionalArray.DEFAULT_SINGLE_COORDINATE_VALUE);
+			String categoryLabel = makeCategoryLabel(lineData.getLabel(), toBeAveraged.iterator().next());
+
+			BoxAndWhiskerItem boxAndWhiskerItem = makeBoxAndWhiskerItem(toBeAveraged);
+
+			dataset.add(tuneBoxItem(boxAndWhiskerItem), ""/*rowKey (for series)*/, categoryLabel /*columnKey (displayed on the X-axis)*/);
+		}
+
+		return dataset;
 	}
 
 
@@ -263,6 +302,19 @@ public class SingleValuesPlotter extends JFreeChartPlotter {
 
 		builder.append(". | ");
 		return builder.toString();
+	}
+
+	private String makeCategoryLabel(String basicLabel, MultiDimensionalArray.DataCell dataCell)	{
+		StringBuilder labelBuilder = new StringBuilder(basicLabel);
+
+		checkAndAppendDataAboutFailure(labelBuilder, dataCell);
+
+		if (currentPlotData.toShowGraphsData()  &&  dataCell != null)	{
+			labelBuilder.append(" ").append(LanguagesConfiguration.getNetBloxLabel(KEY_GRAPH)).append(": ").
+				append(dataCell.getGraphParameters().getShortLabel());
+		}
+
+		return labelBuilder.toString();
 	}
 
 
@@ -432,7 +484,10 @@ public class SingleValuesPlotter extends JFreeChartPlotter {
 
 		Number minimum = (item.getMinOutlier()!=null) ? item.getMinOutlier() : item.getMinRegularValue();
 		Number maximum = (item.getMaxOutlier()!=null) ? item.getMaxOutlier() : item.getMaxRegularValue();
+
+		@SuppressWarnings("unchecked")
 		List<Number> outliers = item.getOutliers();
+
 		if (outliers != null  &&  !outliers.isEmpty())	{
 			for (Number outlier : outliers)	{
 				minimum = (minimum.doubleValue()<outlier.doubleValue()) ? minimum : outlier;
@@ -451,7 +506,19 @@ public class SingleValuesPlotter extends JFreeChartPlotter {
 		JFreeChart chart = ChartFactory.createBarChart(plotTitle, X_AXIS_LABEL, Y_AXIS_LABEL, categoryDataset,
 				PlotOrientation.VERTICAL, plotData.showLegend(), false, false);
 
-		tweakBarPlot(chart.getCategoryPlot(), plotData);
+		tweakCategoryPlot(chart.getCategoryPlot(), plotData);
+
+		addSubtitles(chart, plotData);
+
+		return chart;
+	}
+
+	private JFreeChart makeChart(SingleTypeBigChart plotData, MeanValuesBAWDataset boxCategoriesDataset)	{
+		Y_AXIS_LABEL = addCoefficientToLabel(plotData.getMeasureValuesName(), plotData);
+
+		JFreeChart chart = makeHybridCategoryChart(boxCategoriesDataset);
+
+		tweakCategoryPlot(chart.getCategoryPlot(), plotData);
 
 		addSubtitles(chart, plotData);
 
@@ -461,7 +528,7 @@ public class SingleValuesPlotter extends JFreeChartPlotter {
 	private JFreeChart makeChart(SingleTypeBigChart plotData, XYDatasetPair boxWhiskerAndSeriesPair)	{
 		defineAxesLabels(plotData);
 
-		JFreeChart chart = makeHybridChart(plotData, boxWhiskerAndSeriesPair);
+		JFreeChart chart = makeHybridXYChart(plotData, boxWhiskerAndSeriesPair);
 
 		tweakPlot(chart.getXYPlot(), plotData);
 
@@ -470,7 +537,29 @@ public class SingleValuesPlotter extends JFreeChartPlotter {
 		return chart;
 	}
 
-	private JFreeChart makeHybridChart(SingleTypeBigChart plotData, XYDatasetPair boxWhiskerAndSeriesPair)	{
+	private JFreeChart makeHybridCategoryChart(MeanValuesBAWDataset boxCategoriesDataset)	{
+		CategoryAxis xAxis = new CategoryAxis();
+		xAxis.setMaximumCategoryLabelLines(4);
+
+		NumberAxis yAxis = new NumberAxis(Y_AXIS_LABEL);
+
+		LineAndShapeRenderer pointsRenderer = new LineAndShapeRenderer();
+		pointsRenderer.setBaseLinesVisible(false);
+		pointsRenderer.setSeriesPaint(0, Color.BLACK);
+
+		CategoryPlot plot = new CategoryPlot(boxCategoriesDataset, xAxis, yAxis, pointsRenderer);
+
+		BoxAndWhiskerRenderer boxAndWhiskerRenderer = new BoxAndWhiskerRenderer();
+		boxAndWhiskerRenderer.setMeanVisible(false);
+
+		plot.setDataset(1, boxCategoriesDataset);
+		plot.setRenderer(1, boxAndWhiskerRenderer);
+
+		JFreeChart chart = new JFreeChart(null, null, plot, false);
+		return chart;
+	}
+
+	private JFreeChart makeHybridXYChart(SingleTypeBigChart plotData, XYDatasetPair boxWhiskerAndSeriesPair)	{
 		//Create a box-and-whisker JFreeChart.
 		String plotTitle = null;	//plotData.getMeasureName()
 		JFreeChart chart = ChartFactory.createBoxAndWhiskerChart(plotTitle, X_AXIS_LABEL, Y_AXIS_LABEL,
@@ -564,15 +653,17 @@ public class SingleValuesPlotter extends JFreeChartPlotter {
 	}
 
 
-	private void tweakBarPlot(CategoryPlot plot, SingleTypeBigChart plotData)	{
+	private void tweakCategoryPlot(CategoryPlot plot, SingleTypeBigChart plotData)	{
 		switch (plotData.getAxesScale())	{
 		case Y_LOG10:
 		case XY_LOG10:
 			ValueAxis yAxis = new JFreeLogarithmic10Axis(Y_AXIS_LABEL);
 			yAxis.setMinorTickMarksVisible(true);
 
-			BarRenderer barRenderer = (BarRenderer) plot.getRenderer();
-			barRenderer.setBase(1.0);
+			if (plotData.getPlotStyle() == PlotStyle.BAR)	{
+				BarRenderer barRenderer = (BarRenderer) plot.getRenderer();
+				barRenderer.setBase(1.0);
+			}
 
 			plot.setRangeAxis(yAxis);
 			break;

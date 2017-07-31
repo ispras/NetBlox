@@ -5,6 +5,6 @@ package ru.ispras.modis.NetBlox.dataStructures;
  * 
  * @author ilya
  */
-public interface ISetOfGroupsOfNodes extends Iterable<IGroupOfNodes> {
+public interface ISetOfGroupsOfNodes extends IPackOfGraphStructures<IGroupOfNodes>	{	//Iterable<IGroupOfNodes> {
 	public int size();
 }

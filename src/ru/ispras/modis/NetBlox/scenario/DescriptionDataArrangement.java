@@ -21,7 +21,7 @@ import ru.ispras.modis.NetBlox.dataStructures.internalMechs.LabeledSetOfValues;
 public class DescriptionDataArrangement {
 	public enum PlotStyle {LINE, BAR, STEP, SCATTER, HISTOGRAM};
 	public enum AxesScale {SIMPLE, X_LOG10, Y_LOG10, XY_LOG10};
-	public enum StatisticsAggregation {NONE, DISTRIBUTION, BIG_INTERVALS, CUMULATIVE_AVERAGE};
+	public enum StatisticsAggregation {NONE, DISTRIBUTION, CUMULATIVE_AVERAGE};
 	public enum BoxAndWhiskersStyle {MIN_MAX, NO_BOX};	//MIN_MAX: whiskers for min and max, box represents 1-3 quartiles range.
 
 

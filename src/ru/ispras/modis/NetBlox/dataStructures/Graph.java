@@ -25,18 +25,25 @@ import ru.ispras.modis.NetBlox.utils.Pair;
  * 
  * @author ilya
  */
-public class Graph implements IGraph {
+public class Graph implements IGraph {	//FUTURE_WORK Separate into DirectedGraph and UndirectedGraph?
 	public class Node implements INode	{
 		private Integer id;
 		private Set<INode> outcomingEdgesTo;	//FUTURE_WORK Should we consider multiple edges between the same two nodes?
 		private Map<INode, Float> outcomingWeightedEdgesTo;
+		private Set<INode> incomingEdgesFrom;
 
 		private Map<String, String> nodeAttributes;
 
 		public Node(Integer id)	{
 			this.id = id;
+
 			outcomingEdgesTo = new HashSet<INode>();
 			outcomingWeightedEdgesTo = new HashMap<INode, Float>();
+			//FUTURE_WORK Check whether a graph is weighted? Or do we consider graphs that contain both weighted and unweighted edges?
+
+			if (directed)	{
+				incomingEdgesFrom = new HashSet<INode>();
+			}
 		}
 
 
@@ -62,12 +69,15 @@ public class Graph implements IGraph {
 			outcomingEdgesTo.add(neighbour);
 		}
 		public void addEdgeTo(INode neighbour, Float edgeWeight)	{
-			if (edgeWeight != null)	{
+			if (weighted  &&  edgeWeight != null)	{
 				outcomingWeightedEdgesTo.put(neighbour, edgeWeight);
 			}
 			else	{
 				addEdgeTo(neighbour);
 			}
+		}
+		public void addEdgeFrom(INode neighbour)	{
+			incomingEdgesFrom.add(neighbour);
 		}
 
 		public boolean hasEdgeTo(INode neighbour)	{
@@ -79,15 +89,49 @@ public class Graph implements IGraph {
 		}
 
 
+		/**
+		 * @return	the overall degree of the node. For directed graphs it is a sum of in-degree and out-degree.
+		 */
 		public int getDegree()	{
-			return outcomingEdgesTo.size() + outcomingWeightedEdgesTo.size();
+			int degree = outcomingEdgesTo.size() + outcomingWeightedEdgesTo.size();
+			if (directed)	{
+				degree += incomingEdgesFrom.size();
+			}
+			return degree;
 		}
 
-		public Collection<INode> getNeighbours()	{
-			if (!outcomingWeightedEdgesTo.isEmpty())	{
-				return Collections.unmodifiableCollection(outcomingWeightedEdgesTo.keySet());
+
+		/**
+		 * @return	a set of all neighbours, both for in- and out-coming edges.
+		 */
+		public Set<INode> getNeighbours()	{
+			Set<INode> neighbours = new HashSet<INode>(getOutcomingNeighbours());
+			if (directed)	{
+				neighbours.addAll(incomingEdgesFrom);
 			}
-			return Collections.unmodifiableCollection(outcomingEdgesTo);
+			return neighbours;
+		}
+
+		public Collection<INode> getIncomingNeighbours()	{
+			Collection<INode> neighbours;
+			if (directed)	{
+				neighbours = new ArrayList<INode>(incomingEdgesFrom);
+			}
+			else	{
+				neighbours = getOutcomingNeighbours();
+			}
+			return neighbours;
+		}
+
+		public Collection<INode> getOutcomingNeighbours()	{
+			Collection<INode> neighbours;
+			if (!outcomingWeightedEdgesTo.isEmpty())	{
+				neighbours = new ArrayList<INode>(outcomingWeightedEdgesTo.keySet());
+			}
+			else	{
+				neighbours = new ArrayList<INode>(outcomingEdgesTo);
+			}
+			return neighbours;
 		}
 
 
@@ -117,7 +161,10 @@ public class Graph implements IGraph {
 	private Map<Integer, Node> nodes;
 	private boolean directed;
 	private boolean weighted;
+	private Float maxEdgeWeight = null;
 	private List<String> nodeAttributesNames;
+
+	private Integer id;	//FUTURE_WORK The IDs of graphs are not stored or used anywhere outside the class. This part needs to be developed.
 
 
 	public Graph(boolean directed, boolean weighted)	{
@@ -143,13 +190,9 @@ public class Graph implements IGraph {
 			Node[] edgeNodes = new Node[2];
 			for (String edgeLine : graphFileLines)	{
 				Float edgeWeight = parseNodesFromEdgeLine(edgeNodes, edgeLine);
-				edgeNodes[0].addEdgeTo(edgeNodes[1], edgeWeight);
-				if (!directed)	{
-					edgeNodes[1].addEdgeTo(edgeNodes[0], edgeWeight);
-				}
+				addEdge(edgeNodes[0], edgeNodes[1], edgeWeight);
 			}
 		} catch (IOException e) {	//We assume that we have already checked the existence of the graph.
-			//XXX Throw additional exception?
 			e.printStackTrace();
 		}
 	}
@@ -256,6 +299,26 @@ public class Graph implements IGraph {
 	}
 
 
+	private void addEdge(Node node1, Node node2, Float weight)	{
+		node1.addEdgeTo(node2, weight);
+		if (directed)	{
+			node2.addEdgeFrom(node1);
+		}
+		else	{
+			node2.addEdgeTo(node1, weight);
+		}
+
+		if (weighted)	{
+			if (weight == null)	{
+				return;
+			}
+			maxEdgeWeight = (maxEdgeWeight==null) ? weight : Math.max(maxEdgeWeight, weight);
+		}
+		else	{
+			maxEdgeWeight = 1f;
+		}
+	}
+
 	@Override
 	public INode getNode(Integer id)	{
 		return nodes.get(id);
@@ -278,17 +341,12 @@ public class Graph implements IGraph {
 		for (Node node : nodes.values())	{
 			result += node.getDegree();
 		}
-
-		if (!directed)	{
-			result = result / 2;
-		}
-
+		result /= 2;	//Each edge is counted twice, both for directed and undirected graphs.
 		return result;
 	}
 
 	public double getAverageDegree()	{
 		int cumulativeDegree = 0;
-
 		for (Node node : nodes.values())	{
 			cumulativeDegree += node.getDegree();
 		}
@@ -333,20 +391,30 @@ public class Graph implements IGraph {
 			nodes.put(id2, node2);
 		}
 
-		if (isWeighted())	{
-			node1.addEdgeTo(node2, weight);
-		}
-		else	{
-			node1.addEdgeTo(node2);
-		}
+		addEdge(node1, node2, weight);
 	}
 
 
+	/**
+	 * All unique neighbours. Self-loops are possible.
+	 */
 	@Override
 	public Collection<INode> getNeighbours(INode node)	{
 		return nodes.get(node.getId()).getNeighbours();
 	}
+	@Override
+	public Collection<INode> getIncomingNeighbours(INode node)	{
+		return nodes.get(node.getId()).getIncomingNeighbours();
+	}
+	@Override
+	public Collection<INode> getOutcomingNeighbours(INode node)	{
+		return nodes.get(node.getId()).getOutcomingNeighbours();
+	}
 
+
+	/**
+	 * Unique neighbours that belong to the group. Self-loops are possible.
+	 */
 	@Override
 	public Collection<INode> getNeighboursInGroup(INode node, IGroupOfNodes group)	{
 		Collection<INode> allNeighbours = getNeighbours(node);
@@ -363,35 +431,39 @@ public class Graph implements IGraph {
 	public IGraph getSubgraphForGroup(IGroupOfNodes group)	{
 		Graph result = new Graph(directed, weighted);
 
+		result.nodeAttributesNames = nodeAttributesNames;
+
+		//XXX Is computation of max edge weights for each subgraph necessary?
+		//For now let's just keep the parent's maximal edge weight. This is better for the existing visualisation process (force-directed layout).
+		result.maxEdgeWeight = maxEdgeWeight;
+
 		for (Map.Entry<Integer, Node> nodeEntry : nodes.entrySet())	{
 			Node node = nodeEntry.getValue();
 			if (group.contains(node))	{
 				result.nodes.put(nodeEntry.getKey(), node);	//The node keeps the same edges it had!
+
+				/*if (weighted)	{	//Need to set the maximal edge weight of the new graph.
+					for (INode neighbour : node.getOutcomingNeighbours())	{
+						if (!group.contains(neighbour))	{	//Consider only inner edges.
+							continue;
+						}
+						float edgeWeight = node.getWeightOfEdgeTo(neighbour);
+						result.maxEdgeWeight = (result.maxEdgeWeight==null) ? edgeWeight : Math.max(result.maxEdgeWeight, edgeWeight);
+					}
+				}*/
 			}
 		}
+
+		/*if (!weighted)	{	//Also need to set the maximal edge weight of the new graph if it has edges at all.
+			if (result.getEdges().size() > 0)	{
+				//FUTURE_WORK Can't use getNumberOfEdges() as the nodes keep their old edges, so we won't see the picture for internal edges. Fix that?
+				result.maxEdgeWeight = 1f;
+			}
+		}*/
 
 		return result;
 	}
 
-
-	/*public List<String> getLinesOfEdgesAsNodePairs()	{
-		List<String> linesWithEdges = new LinkedList<String>();
-
-		Collection<Node> nodesCollection = nodes.values();
-		for (Node node1 : nodesCollection)	{
-			for (Node node2 : nodesCollection)	{
-				if (node1.equals(node2))	{
-					continue;
-				}
-				if (hasEdge(node1, node2))	{
-					String edgeInLine = node1.getId().toString() + "\t" + node2.getId().toString() + "\n";
-					linesWithEdges.add(edgeInLine);
-				}
-			}
-		}
-
-		return linesWithEdges;
-	}*/
 
 	@Override
 	public Collection<Pair<INode, INode>> getEdges()	{
@@ -421,7 +493,7 @@ public class Graph implements IGraph {
 
 		Node sourceNode = nodes.get(node1.getId());
 		Float weight = null;
-		if (isWeighted())	{
+		if (weighted)	{
 			weight = sourceNode.getWeightOfEdgeTo(node2);
 		}
 		if (weight == null)	{
@@ -431,18 +503,74 @@ public class Graph implements IGraph {
 		return weight;
 	}
 
+	@Override
+	public Float getMaxEdgeWeight()	{
+		return maxEdgeWeight;
+	}
+
 
 	public boolean hasNodeAttributes()	{
-		/*Entry<Integer, Node> aNodesEntry = nodes.entrySet().iterator().next();
-		if (aNodesEntry == null)	{
-			return false;
-		}
-		Node node = aNodesEntry.getValue();
-		return !node.nodeAttributes.isEmpty();*/
-		return !nodeAttributesNames.isEmpty();
+		return nodeAttributesNames != null  &&  !nodeAttributesNames.isEmpty();
 	}
 
 	public List<String> getNodeAttributesNames()	{
 		return Collections.unmodifiableList(nodeAttributesNames);
+	}
+
+
+	@Override
+	public boolean equals(Object obj)	{
+		if (!(obj instanceof Graph))	{
+			return super.equals(obj);
+		}
+		Graph other = (Graph)obj;
+
+		if (id!=null && other.id!=null)	{
+			return id.equals(other.id);
+		}
+
+		if (directed!=other.directed || weighted!=other.weighted || maxEdgeWeight!=other.maxEdgeWeight)	{	//FUTURE_WORK nodeAttributesNames - ?
+			return false;
+		}
+		if (!nodes.equals(other.nodes))	{
+			return false;
+		}
+
+		for (Map.Entry<Integer, Node> idNode : nodes.entrySet())	{
+			INode otherNode = other.getNode(idNode.getKey());
+
+			Collection<INode> neighbours = idNode.getValue().getOutcomingNeighbours();
+			Collection<INode> otherNeighbours = other.getOutcomingNeighbours(otherNode);
+			if (!neighbours.equals(otherNeighbours))	{
+				return false;
+			}
+
+			if (directed)	{
+				neighbours = idNode.getValue().getIncomingNeighbours();
+				otherNeighbours = other.getIncomingNeighbours(otherNode);
+				if (!neighbours.equals(otherNeighbours))	{
+					return false;
+				}
+			}
+		}
+
+		return true;
+	}
+
+	@Override
+	public int hashCode()	{
+		if (id != null)	{
+			return id.hashCode();
+		}
+
+		int hashResult = nodes.hashCode();
+		if (maxEdgeWeight != null)	{
+			hashResult += maxEdgeWeight.hashCode();
+		}
+		if (nodeAttributesNames != null)	{
+			hashResult += nodeAttributesNames.hashCode();
+		}
+
+		return hashResult;
 	}
 }

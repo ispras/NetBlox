@@ -32,7 +32,7 @@ public abstract class ProvidedGraph extends ResultsFromPlugins {
 		tellAboutUnimplementedMethod(ResultsProvisionFormat.INTERNAL);
 		return null;
 	}
-	public ISetOfGroupsOfNodes getCover()	{	//TODO Or rather ICover?
+	public ISetOfGroupsOfNodes getCover()	{	//XXX Or rather ICover?
 		tellAboutUnimplementedMethod(ResultsProvisionFormat.INTERNAL);
 		return null;
 	}

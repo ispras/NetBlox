@@ -234,7 +234,7 @@ public class MultiDimensionalArray implements Cloneable {
 			return coordinateValue;
 		}
 
-		RangeOfValues<String> providedCoversFilesNames = fixedParametersGraph.getProvidedForCharacterizationExternalCoversFilenames();
+		RangeOfValues<String> providedCoversFilesNames = fixedParametersGraph.getProvidedForCharacterizationExternalFilenames();
 		if (variationId.equals(providedCoversFilesNames.getRangeId()))	{
 			return externalSetOfGroupsOfNodesFileName;
 		}

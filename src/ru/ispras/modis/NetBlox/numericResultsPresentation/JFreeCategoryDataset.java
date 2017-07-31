@@ -51,7 +51,10 @@ public class JFreeCategoryDataset extends DefaultCategoryDataset {
 	@Override
     public List<Comparable<?>> getColumnKeys() {
 		List<?> columnKeysAsIs = super.getColumnKeys();
+
+		@SuppressWarnings("rawtypes")
 		List columnKeys = new ArrayList<>(columnKeysAsIs);
+
 		Collections.sort(columnKeys, new CategoriesComparator());
         return columnKeys;
     }
@@ -75,6 +78,7 @@ public class JFreeCategoryDataset extends DefaultCategoryDataset {
 
 
 	private class CategoriesComparator implements Comparator<Object>	{
+		private NumbersComparator numbersComparator = new NumbersComparator();
 
 		@Override
 		public int compare(Object o1, Object o2) {
@@ -89,21 +93,7 @@ public class JFreeCategoryDataset extends DefaultCategoryDataset {
 
 			Number n1 = (Number) o1;
 			Number n2 = (Number) o2;
-			if (n1 instanceof Double  ||  n2 instanceof Double)	{
-				Double d1 = n1.doubleValue();
-				Double d2 = n2.doubleValue();
-				return d1.compareTo(d2);
-			}
-			else if (n1 instanceof Float  ||  n2 instanceof Float)	{
-				Float f1 = n1.floatValue();
-				Float f2 = n2.floatValue();
-				return f1.compareTo(f2);
-			}
-			else	{
-				Integer i1 = n1.intValue();
-				Integer i2 = n2.intValue();
-				return i1.compareTo(i2);
-			}
+			return numbersComparator.compare(n1, n2);
 		}
 		
 	}
